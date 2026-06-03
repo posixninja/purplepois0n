@@ -1,0 +1,3 @@
+[submodule "external/ipsw"]
+	path = external/ipsw
+	url = https://github.com/blacktop/ipsw.git
