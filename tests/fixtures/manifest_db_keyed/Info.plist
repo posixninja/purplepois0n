@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Device Name</key>
+	<string>Test iPhone</string>
+	<key>IsEncrypted</key>
+	<false/>
+	<key>Product Version</key>
+	<string>15.0</string>
+	<key>Unique Device ID</key>
+	<string>TEST-UDID-KEYED</string>
+</dict>
+</plist>

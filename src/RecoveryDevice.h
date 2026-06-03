@@ -1,0 +1,117 @@
+/*
+ * RecoveryDevice.h
+ *
+ *  Created on: Apr 9, 2023
+ *      Author: posixninja
+ */
+
+#ifndef RECOVERYDEVICE_H_
+#define RECOVERYDEVICE_H_
+
+#include <memory>
+#include <string>
+#include <vector>
+#include <iostream>
+#include <stdexcept>
+#include <libirecovery.h>
+#include <cstdlib>
+
+#include <stdint.h>
+#include "IRecvUtil.h"
+
+namespace PP {
+
+/**
+ * @class RecoveryDevice
+ * @brief Interface for communicating with iOS devices in recovery mode
+ */
+class RecoveryDevice {
+public:
+    RecoveryDevice(const uint64_t ecid) : mECID(ecid), mClient(getClient()) {}
+
+    ~RecoveryDevice() {
+        if (mClient != nullptr) {
+            irecv_close(mClient);
+        }
+    }
+
+    std::string getSerialNumber() const {
+        const std::string serial = irecv_util::serialFromClient(mClient);
+        if (serial.empty()) {
+            throw std::runtime_error("Failed to get serial number");
+        }
+        return serial;
+    }
+
+    std::string getDeviceType() const {
+        const std::string productType = irecv_util::productTypeFromClient(mClient);
+        if (productType.empty()) {
+            throw std::runtime_error("Failed to get device type");
+        }
+        return productType;
+    }
+
+    std::string getFirmwareVersion() const {
+        char* value = nullptr;
+        if (irecv_getenv(mClient, "build-version", &value) == IRECV_E_SUCCESS && value != nullptr) {
+            std::string result(value);
+            free(value);
+            return result;
+        }
+        return std::string();
+    }
+
+    std::vector<uint8_t> readMemory(const uint64_t address, const uint64_t length) const {
+        if (length > 0xFFFFu) {
+            throw std::runtime_error("Read length exceeds USB control transfer limit");
+        }
+        std::vector<uint8_t> buffer(length);
+        const int transferred = irecv_util::usbMemoryRead(
+            mClient, address, &buffer[0], static_cast<uint16_t>(length));
+        if (transferred < 0 || static_cast<uint64_t>(transferred) != length) {
+            throw std::runtime_error("Failed to read memory");
+        }
+        return buffer;
+    }
+
+    void writeMemory(const uint64_t address, const std::vector<uint8_t>& data) const {
+        if (data.size() > 0xFFFFu) {
+            throw std::runtime_error("Write length exceeds USB control transfer limit");
+        }
+        const int transferred = irecv_util::usbMemoryWrite(
+            mClient, address, &data[0], static_cast<uint16_t>(data.size()));
+        if (transferred < 0 || static_cast<size_t>(transferred) != data.size()) {
+            throw std::runtime_error("Failed to write memory");
+        }
+    }
+
+    void sendCommand(const std::string& command) const {
+        if (irecv_send_command(mClient, command.c_str()) != IRECV_E_SUCCESS) {
+            throw std::runtime_error("Failed to send command");
+        }
+    }
+
+    std::vector<uint8_t> receiveResponse(const uint64_t length) const {
+        std::vector<uint8_t> buffer(length);
+        if (irecv_recv_buffer(mClient, reinterpret_cast<char*>(&buffer[0]), length) != IRECV_E_SUCCESS) {
+            throw std::runtime_error("Failed to receive response");
+        }
+        return buffer;
+    }
+
+private:
+    irecv_client_t getClient() const {
+        irecv_client_t client = nullptr;
+        if (irecv_util::openWithEcidRetry(&client, mECID) != IRECV_E_SUCCESS) {
+            throw std::runtime_error("Failed to open device");
+        }
+        return client;
+    }
+
+    const uint64_t mECID;
+    irecv_client_t const mClient;
+};
+
+} /* namespace PP */
+
+#endif /* RECOVERYDEVICE_H_ */

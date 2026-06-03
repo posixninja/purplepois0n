@@ -1,0 +1,13 @@
+# Local GitHub archive mirrors (clone trees not part of purplepois0n source)
+legacy/**
+!legacy/README.md
+
+# purplepois0n build output (make release / make debug / make plugins)
+build/
+
+# Stray object files from manual compiles outside build/
+*.o
+
+# Submodule-built Go binaries (make external-ipsw / make external-ipswd)
+external/ipsw/ipsw
+external/ipsw/ipswd
