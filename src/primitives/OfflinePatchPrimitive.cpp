@@ -3,6 +3,8 @@
  */
 
 #include "primitives/OfflinePatchPrimitive.h"
+#include "primitives/CodesignDelegate.h"
+#include "primitives/CodesignTypes.h"
 #include "Logger.h"
 
 namespace PP {
@@ -34,6 +36,15 @@ std::string OfflinePatchPrimitive::targetKind() const {
 }
 
 PrimitiveResult OfflinePatchPrimitive::execute(ExecutionContext& context) {
+    if (!context.codesignInputPath.empty()) {
+        CodesignOptions opts =
+            CodesignDelegate::mergeOptions(context.codesign, codesignOptionsFromEnv());
+        if (!context.codesignOutputPath.empty()) {
+            opts.outputPath = context.codesignOutputPath;
+        }
+        return CodesignDelegate::signPath(opts, context.codesignInputPath, context.allowMutation);
+    }
+
     if (context.allowMutation) {
         if (!exploitPluginsEnabled()) {
             Logger::warn("  [Codesign] Patch/Overwrite blocked — "

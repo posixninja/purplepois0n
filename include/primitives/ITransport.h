@@ -8,6 +8,8 @@
 #define PRIMITIVES_I_TRANSPORT_H_
 
 #include <cstdint>
+#include <string>
+#include <vector>
 #include <vector>
 
 namespace PP {
@@ -28,6 +30,33 @@ public:
     virtual bool isLive() const = 0;
 
     virtual const char* transportName() const = 0;
+
+    /** Upload signed firmware component (Recovery iBSS/iBEC); default unsupported. */
+    virtual bool sendFile(const std::string& path) {
+        (void)path;
+        return false;
+    }
+
+    /** irecv_reset after upload (Recovery only). */
+    virtual bool resetDevice() { return false; }
+
+    /** irecv_reboot after upload (Recovery only). */
+    virtual bool rebootDevice() { return false; }
+
+    /** iBoot command (e.g. go) in Recovery; default unsupported. */
+    virtual bool sendCommand(const std::string& command) {
+        (void)command;
+        return false;
+    }
+
+    /** iBoot env in Recovery (e.g. NONCE); empty when unsupported. */
+    virtual std::string getDeviceEnv(const std::string& name) const {
+        (void)name;
+        return std::string();
+    }
+
+    /** Binary ApNonce from irecv device info when available. */
+    virtual std::vector<uint8_t> getApNonceBytes() const { return std::vector<uint8_t>(); }
 };
 
 } /* namespace primitives */

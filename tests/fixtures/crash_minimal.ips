@@ -1,0 +1,7 @@
+{"bug_type":"309","os_version":"iPhone OS 14.0"}
+Incident Identifier: TEST-CRASH-SLIDE
+Thread 0 Crashed:
+  0: libobjc.A.dylib         (slide=0x27010000) 0x1bc39e1e0 _objc_msgSend + 32
+  1: CoreFoundation          (slide=0x27010000) 0x1a734e76c -[__NSDictionaryM objectForKeyedSubscript:] + 184
+  2: CoreTelephony           (slide=0x27010000) 0x1a79d1230 -[CTTelephonyNetworkInfo updateRat:descriptor:] + 144
+ 00: kernelcache 0xfffffff007188b20 (slide 0x136fc000) func_fffffff0071888d0 + 592

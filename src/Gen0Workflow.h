@@ -10,47 +10,157 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include "MachOParser.h"
+#include "primitives/CodesignTypes.h"
+#include "primitives/TssTypes.h"
+#include "primitives/PrimitiveTypes.h"
+#include "RamdiskTypes.h"
 
 namespace PP {
 
 class DeviceManager;
 
+struct Gen0RecoveryOptions {
+    bool chainRun = false;
+    bool execute = false;
+    std::string uploadPath;
+    std::string componentLabel;
+    std::vector<primitives::ExecutionContext::RecoveryChainComponent> chain;
+};
+
+struct Gen0RamdiskOptions {
+    std::string buildRamdiskPath;
+    std::string fromIpswOutput;
+    std::string overlayPath;
+    std::string workDir;
+    std::string ident;
+    RamdiskOptions build;
+    std::vector<RamdiskStageEntry> stagedFiles;
+    RamdiskConnectOptions connect;
+    std::string execCommand;
+    std::string uploadLocal;
+    std::string uploadRemote;
+    std::string downloadRemote;
+    std::string downloadLocal;
+    std::string listPath;
+};
+
+struct Gen0PongoOptions {
+    bool probeRun = false;
+    bool bootRun = false;
+    bool execute = false;
+    bool spawnCheckra1n = false;
+    std::string kpfPath;
+    std::string ramdiskDmgPath;
+    std::string xargsLine;
+};
+
 /** Options for Gen0 scaffold runs. */
 struct Gen0Options {
     std::string reportPath;
     std::string backupPath;
+    std::string ipswPath;
+    std::string apticketPath;
+    primitives::FutureRestoreOptions futureRestore;
+    std::string im4mManifestPath;
+    std::string ipswComponentPath;
+    std::string fetchShshPath;
+    std::string codesignInputPath;
+    std::string codesignOutputPath;
+    primitives::CodesignOptions codesign;
+    std::string ipaInstallPath;
+    std::string trustCachePath;
+    Gen0RecoveryOptions recovery;
+    Gen0RamdiskOptions ramdisk;
+    Gen0PongoOptions pongo;
+    /** Run sign-ipa → install-ipa → trustcache-add when mutation enabled. */
+    bool postJbPipeline = false;
+    bool futurerestoreRestore = false;
 };
 
-/**
- * @brief Run Gen 0 jailbreak scaffold for the connected device mode.
- *
- * Connects via DeviceManager where supported and logs what is NOT implemented
- * (bootrom exploits, backup restore, untether). Does not perform exploits.
- */
 bool runGen0Jailbreak(DeviceManager& manager,
                       const std::string& targetUDID = "",
                       const Gen0Options& options = Gen0Options());
 
-/**
- * @brief Parse an on-disk iTunes-style backup and print a research summary.
- * @param backupPath Path to backup directory (contains Manifest.plist / Info.plist)
- */
 bool analyzeBackup(const std::string& backupPath);
 
-/**
- * @brief Parse a Mach-O binary and print segment/symbol summary (offline research).
- */
 bool analyzeBinary(const std::string& binaryPath,
                    MachOArchPreference archPreference = MachOArchPreference::Default,
                    const std::string& payloadJsonPath = "");
 
-/**
- * @brief Parse a dyld shared cache file and print catalog summary (offline research).
- * @param payloadJsonPath If non-empty, write opaque JSON payload (ipsw or internal summary).
- */
 bool analyzeDyldCache(const std::string& cachePath,
                       const std::string& payloadJsonPath = "");
+
+bool analyzeCrashLog(const std::string& crashPath);
+
+bool runTssCheck(DeviceManager& manager,
+                 const std::string& targetUDID,
+                 const std::string& productType,
+                 const std::string& iosVersion,
+                 uint64_t ecid,
+                 const std::string& ipswPath = "",
+                 const std::string& apticketPath = "");
+
+bool fetchLiveShsh(DeviceManager& manager,
+                   const std::string& targetUDID,
+                   const std::string& ipswPath,
+                   const std::string& outputPath);
+
+bool runHostCodesign(const std::string& inputPath,
+                     const primitives::CodesignOptions& options,
+                     bool allowMutation);
+
+bool runHostSignIpa(const std::string& ipaPath,
+                    const std::string& outputIpaPath,
+                    const primitives::CodesignOptions& options,
+                    bool allowMutation);
+
+bool runSideloadInstall(DeviceManager& manager,
+                         const std::string& targetUDID,
+                         const std::string& ipaPath,
+                         bool allowMutation);
+
+bool runTrustCacheAdd(const std::string& binaryPath, bool allowMutation);
+
+/** Host jbctl or ramdisk SSH trust-cache add (uses @p context ramdiskConnect when set). */
+bool runTrustCacheAddWithContext(const primitives::ExecutionContext& context, bool allowMutation);
+
+/** Sign IPA → install → optional trustcache (requires make plugins + Normal mode). */
+bool runPostJbPipeline(DeviceManager& manager,
+                       const std::string& targetUDID,
+                       const Gen0Options& options);
+
+/** Destructive futurerestore restore (explicit CLI only). */
+bool runFuturerestoreRestore(const Gen0Options& options, bool allowMutation);
+
+bool runBuildRamdisk(const RamdiskOptions& options, const std::string& overlayDir,
+                     const std::vector<RamdiskStageEntry>& stagedFiles,
+                     const std::string& outputPath);
+
+bool runRamdiskFromIpsw(const RamdiskOptions& options, const std::string& ipswPath,
+                        const std::string& ident, const std::string& overlayDir,
+                        const std::vector<RamdiskStageEntry>& stagedFiles,
+                        const std::string& workDir, const std::string& outputPath);
+
+bool populateDefaultRecoveryChain(const std::string& ipswPath, const std::string& workDir,
+    std::vector<primitives::ExecutionContext::RecoveryChainComponent>* chain);
+
+bool runRamdiskProbe(const RamdiskConnectOptions& options, std::string* message);
+
+bool runRamdiskExec(const RamdiskConnectOptions& options, const std::string& command);
+
+bool runRamdiskPush(const RamdiskConnectOptions& options, const std::string& localPath,
+                    const std::string& remotePath);
+
+bool runRamdiskPull(const RamdiskConnectOptions& options, const std::string& remotePath,
+                    const std::string& localPath);
+
+bool runRamdiskList(const RamdiskConnectOptions& options, const std::string& remotePath);
+
+/** PongoOS USB probe/boot (see src/pongo/PongoWorkflow.cpp). */
+bool runPongoProbe(bool spawnCheckra1n, bool allowMutation, std::string* message);
+bool runPongoBoot(const Gen0Options& options, bool allowMutation);
 
 } /* namespace PP */
 

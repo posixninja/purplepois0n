@@ -10,6 +10,8 @@ purplepois0n keeps **optional local mirrors** of historical jailbreak-era GitHub
 | `legacy/OpenJailbreak/` | [github.com/OpenJailbreak](https://github.com/OpenJailbreak) |
 | `legacy/posixninja/` | [github.com/posixninja](https://github.com/posixninja) |
 
+| `legacy/modern-era/` | Selective Gen 6 (Dopamine, kfd, XPF, …) — [clone-modern-era.sh](../legacy/clone-modern-era.sh) |
+
 ## Integration policy
 
 - **Read-only reference:** Use clones for lineage research, diffing against purplepois0n, and mapping names in [GENERATIONS.md](GENERATIONS.md) / [LINEAGE.md](LINEAGE.md).
@@ -24,7 +26,8 @@ Structured learnings from the local mirrors live under **`docs/legacy/`**:
 | Document | Purpose |
 |----------|---------|
 | [legacy/LEARNINGS.md](legacy/LEARNINGS.md) | Architecture synthesis per repo/category — data flows, gaps vs `src/`, safe-to-port vs do-not-port |
-| [legacy/INTEGRATION_PLAN.md](legacy/INTEGRATION_PLAN.md) | Phased roadmap (host I/O, mbdb, Gen0 hooks, checkm8, book updates) |
+| [legacy/MODERN_ERA_LEARNINGS.md](legacy/MODERN_ERA_LEARNINGS.md) | Gen 6 mirror synthesis — Dopamine chain, exploit modules, host vs device boundaries |
+| [legacy/INTEGRATION_PLAN.md](legacy/INTEGRATION_PLAN.md) | Phased roadmap (host I/O, mbdb, Gen0 hooks, checkm8, book updates, Phase 6 primitives) |
 | [legacy/REPO_INDEX.md](legacy/REPO_INDEX.md) | Compact repo catalog with study priorities (P0–P3) |
 | [legacy/COMPARISON_MATRIX.md](legacy/COMPARISON_MATRIX.md) | Capability grid: greenpois0n vs absinthe vs purplepois0n |
 | [legacy/DOWNLOAD_COVERAGE.md](legacy/DOWNLOAD_COVERAGE.md) | Clone coverage by jailbreak generation |

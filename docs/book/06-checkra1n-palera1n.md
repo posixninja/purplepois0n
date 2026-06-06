@@ -76,11 +76,12 @@ Ars Technica 2019 interview explains bootROM properties at journalism depth.
 | Component | Status |
 |-----------|--------|
 | [`DFUDevice`](../../src/DFUDevice.h) | **Implemented** — USB memory R/W, commands |
-| [`RecoveryDevice`](../../src/RecoveryDevice.h) | **Implemented** — needs ECID wiring in CLI |
+| [`RecoveryDevice`](../../src/RecoveryDevice.h) | **Implemented** — ECID via `DeviceManager::getRecoveryEcid` |
 | [`DeviceManager`](../../src/DeviceManager.cpp) | **Implemented** — DFU-first detect |
-| checkm8, Pongo, KPF, ramdisks | **Not in-tree** — use external projects |
-| `performJailbreak()` DFU | **TODO** — logs device type only |
-| `performJailbreak()` Recovery | **TODO** — no `getRecoveryDevice` yet |
+| checkm8 delivery | **Partial** — external gaster/ipwndfu via `-m` |
+| Pongo USB probe / boot chain | **Partial** — `PongoDevice` (libusb), `pongo-probe`, `pongo-boot-chain`; KPF user-supplied |
+| KPF bytes / untether | **Not in-tree** |
+| Recovery iBSS→iBEC→rdsk→`go` | **Partial** — [`RecoveryBootChainPrimitive`](../../src/primitives/RecoveryBootChainPrimitive.cpp) |
 
 DFU path matches checkra1n **transport** only:
 

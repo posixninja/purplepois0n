@@ -18,7 +18,8 @@ Legend: **Yes** = implemented in shipping historical tool / in-tree today · **P
 | **IMG3 / iBSS upload** | Yes | N/A | **No** |
 | **Normal mode lockdown** | Secondary | Yes | **Yes** (`MobileDevice`) |
 | **Installed app enumeration** | No | Yes | **Yes** |
-| **AFC upload / download** | Post-JB | Yes | **Yes** (`AFCService`; no list CLI) |
+| **AFC upload / download** | Post-JB | Yes | **Yes** (`AFCService`; CLI `--afc-push` / `--afc-pull`) |
+| **AFC directory listing** | Post-JB | Yes | **Yes** (`--afc-list`) |
 | **Offline backup parse (v1 index)** | No | Yes (mbdb/plist) | **Yes** |
 | **Offline backup parse (v2 index)** | No | — | **Yes** (`Manifest.db`) |
 | **Backup storage v1/v2 paths** | No | Yes | **Yes** (`Status.plist` + flat/sharded resolve) |
@@ -28,6 +29,7 @@ Legend: **Yes** = implemented in shipping historical tool / in-tree today · **P
 | **mobilebackup2 live client** | No | Yes | **No** |
 | **Mach-O parse (host)** | Limited | Yes | **Yes** — `MachOBinary` → ipswd / ipsw / `MachOParser`; `--arch` for fat |
 | **Mach-O JSON export (boogeraids)** | No | Internal | **Yes** (`--analyze-json`, ipswd-first) |
+| **PUAF / kfd kernel research (host)** | No | Internal (kfd) | **No** — study external kfd; offline IPSW parse only |
 | **Dyld shared cache parse** | No | Yes | **Yes** — `DyldSharedCache` → ipswd / ipsw / `DyldCacheParser` |
 | **Encrypted backup decrypt** | No | Yes | **No** (deferred; parse metadata only) |
 | **Crash log → ASLR slide** | No | Yes | **No** |
@@ -35,12 +37,13 @@ Legend: **Yes** = implemented in shipping historical tool / in-tree today · **P
 | **Untether install** | Yes | Yes | **NOT** |
 | **One-click GUI jailbreak** | Yes | Yes | **No** (CLI scaffold) |
 | **Gen0 honest gap logging** | No | No | **Yes** (`Gen0Workflow`) |
-| **Primitive taxonomy + ChainRunner** | No | No | **Yes** (`include/primitives/`) |
+| **Primitive taxonomy + ChainRunner** | No | No | **Yes** (`include/primitives/`, 7 built-in probes) |
+| **Gen 6 host probes (ipswd/kernel/sandbox gaps)** | No | No | **Yes** (Phase 6) |
 | **Normal app-count probe** | No | Yes | **Yes** (`NormalModeProbePrimitive`) |
 | **Chain report export** | No | No | **Yes** (`--report FILE`) |
 | **Progress callbacks (USB upload)** | Yes | Partial | **Yes** (`IRecvProgressSubscription`, optional `DFUDevice` callback) |
 | **iTunes/Finder interference handling** | Partial | Yes (`iTunesKiller`) | **No** |
-| **TSS / SHSH / signed restore** | via redsn0n ecosystem | Partial | **No** |
+| **TSS / SHSH / signed restore** | via redsn0n ecosystem | Partial | **Partial** (probe + futurerestore delegate) |
 | **Device mode auto-detect order** | DFU→Recovery→Normal | Normal-first | **DFU→Recovery→Normal** |
 
 ---
@@ -100,6 +103,7 @@ Update this matrix when:
 - Hardware smoke: DFU/Recovery/checkm8 with physical device (documented in SUPPORT.md)
 - SUPPORT.md capability rows change
 - Binary analysis backend changes (ipswd / ipsw / internal)
+- Backport tasks land — sync [BACKPORT_MATRIX.md](../BACKPORT_MATRIX.md) §5–§6
 
 See [PHASE_STATUS.md](PHASE_STATUS.md) for current phase rollup.
 

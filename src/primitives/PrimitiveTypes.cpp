@@ -21,6 +21,20 @@ const char* categoryToString(PrimitiveCategory category) {
             return "Bootrom";
         case PrimitiveCategory::Kernel:
             return "Kernel";
+        case PrimitiveCategory::PacBypass:
+            return "PacBypass";
+        case PrimitiveCategory::PplBypass:
+            return "PplBypass";
+        case PrimitiveCategory::Patchfinding:
+            return "Patchfinding";
+        case PrimitiveCategory::PhysRw:
+            return "PhysRw";
+        case PrimitiveCategory::Privilege:
+            return "Privilege";
+        case PrimitiveCategory::TrustCache:
+            return "TrustCache";
+        case PrimitiveCategory::Bootstrap:
+            return "Bootstrap";
         case PrimitiveCategory::Codesign:
             return "Codesign";
         case PrimitiveCategory::Sandbox:
@@ -79,6 +93,24 @@ const char* stageToString(ChainStage stage) {
             return "Detect";
         case ChainStage::Connect:
             return "Connect";
+        case ChainStage::Kernelcache:
+            return "Kernelcache";
+        case ChainStage::Patchfind:
+            return "Patchfind";
+        case ChainStage::KernelExploit:
+            return "KernelExploit";
+        case ChainStage::PacBypass:
+            return "PacBypass";
+        case ChainStage::PplBypass:
+            return "PplBypass";
+        case ChainStage::PhysRw:
+            return "PhysRw";
+        case ChainStage::Privilege:
+            return "Privilege";
+        case ChainStage::TrustCache:
+            return "TrustCache";
+        case ChainStage::Bootstrap:
+            return "Bootstrap";
         case ChainStage::Probe:
             return "Probe";
         case ChainStage::Report:

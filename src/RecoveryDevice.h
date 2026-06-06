@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <string>
+#include <cstdint>
 #include <vector>
 #include <iostream>
 #include <stdexcept>
@@ -17,6 +18,7 @@
 #include <cstdlib>
 
 #include <stdint.h>
+#include "IRecvProgress.h"
 #include "IRecvUtil.h"
 
 namespace PP {
@@ -27,7 +29,7 @@ namespace PP {
  */
 class RecoveryDevice {
 public:
-    RecoveryDevice(const uint64_t ecid) : mECID(ecid), mClient(getClient()) {}
+    explicit RecoveryDevice(uint64_t ecid, IRecvProgressCallback progress = nullptr);
 
     ~RecoveryDevice() {
         if (mClient != nullptr) {
@@ -91,6 +93,24 @@ public:
         }
     }
 
+    /** Upload signed IMG3/IMG4 component (iBSS, iBEC, etc.) via libirecovery. */
+    void sendFile(const std::string& path, unsigned int options = IRECV_SEND_OPT_NONE) const;
+
+    /** Reset USB/iBoot state (`irecv_reset`). */
+    void reset() const;
+
+    /** Reboot device from Recovery (`irecv_reboot`). */
+    void reboot() const;
+
+    /** Read iBoot environment variable (caller frees not required — copied to string). */
+    std::string getEnv(const std::string& name) const;
+
+    uint32_t getCpid() const;
+    uint32_t getBoardId() const;
+    std::vector<uint8_t> getApNonce() const;
+
+    uint64_t getEcid() const { return mECID; }
+
     std::vector<uint8_t> receiveResponse(const uint64_t length) const {
         std::vector<uint8_t> buffer(length);
         if (irecv_recv_buffer(mClient, reinterpret_cast<char*>(&buffer[0]), length) != IRECV_E_SUCCESS) {
@@ -110,6 +130,7 @@ private:
 
     const uint64_t mECID;
     irecv_client_t const mClient;
+    std::unique_ptr<IRecvProgressSubscription> m_progress;
 };
 
 } /* namespace PP */

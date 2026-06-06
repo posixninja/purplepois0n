@@ -25,6 +25,12 @@ public:
     /** Register all built-in probe-safe primitives. Idempotent. */
     void registerBuiltins();
 
+    void registerBootromPrimitives();
+    void registerGen6ChainPrimitives();
+    void registerHistoricalExploitModules();
+    void registerBootChainPrimitives();
+    void registerHostProbePrimitives();
+
     std::vector<Primitive*> list() const;
     std::vector<Primitive*> list(PrimitiveCategory category) const;
     Primitive* findByName(const std::string& name) const;

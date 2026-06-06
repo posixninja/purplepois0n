@@ -164,6 +164,13 @@ This installs the binary to `/usr/local/bin/purplepois0n`.
 - `-m, --checkm8`: Run checkm8 bootrom exploit (DFU; needs gaster or ipwndfu on PATH)
 - `--gen0`: Gen 0 scaffold with explicit Generation 0 messaging (no checkm8)
 - `--analyze-backup PATH`: Offline backup manifest — v1 (mbdb/plist) or v2 (Manifest.db); flat/sharded paths
+- `--afc-list REMOTE`: List AFC directory (requires `-d UDID`, Normal mode)
+- `--afc-push LOCAL REMOTE`: Upload file via AFC (requires `-d UDID`, Normal mode)
+- `--afc-pull REMOTE LOCAL`: Download file via AFC (requires `-d UDID`, Normal mode)
+- `--tss-check`: Probe TSS signing tools; check if build is still signed (use with `-d UDID` in Normal mode)
+- `--ipsw PATH`: Target IPSW for TSS / futurerestore probes in `--gen0`
+- `--apticket PATH`: Saved SHSH/APTicket for futurerestore-style restore planning
+- `--latest-sep`, `--latest-baseband`, `--no-baseband`: futurerestore SEP/baseband options (see [docs/book/deep/tss-futurerestore.md](docs/book/deep/tss-futurerestore.md))
 - `--analyze-binary PATH`: Offline Mach-O summary; use `--arch arm32|arm64` for fat binaries
 - `--analyze-dyldcache PATH`: Offline dyld shared cache summary (image catalog, mappings)
 - `--analyze-json FILE`: Export JSON payload from analyze-binary/dyldcache (ipsw when available)
@@ -175,6 +182,24 @@ Environment variables:
 | `PURPLEPOIS0N_GASTER` | Path to [gaster](https://github.com/0x7ff/gaster) binary (DFU checkm8) | gaster built from current `master`; smoke-tested with purplepois0n `-m` |
 | `PURPLEPOIS0N_IPWNDFU` | Directory containing ipwndfu checkout (alternative to gaster) | [axi0mX/ipwndfu](https://github.com/axi0mX/ipwndfu) — study mirror: `legacy/OpenJailbreak/ipwndfu` |
 | `PURPLEPOIS0N_IPSW` | Override ipsw binary for `--analyze-binary` / `--analyze-dyldcache` | Prefer submodule build below |
+| `PURPLEPOIS0N_DOPAMINE_EXPLOITS` | Directory of built Dopamine exploit `.framework` bundles (e.g. `Dopamine.app/Frameworks`) | Build Dopamine separately; host dlopen requires matching architecture |
+| `PURPLEPOIS0N_DOPAMINE_FLAVOR` | Default `exploit_init` flavor for all modules | kfd default: `physpuppet` (also `smith`, `landa`) |
+| `PURPLEPOIS0N_DOPAMINE_FLAVOR_KFD` | Per-module flavor override | e.g. `smith` |
+| `PURPLEPOIS0N_DOPAMINE_KFD` | Direct path to one exploit dylib (bypasses framework search) | e.g. `…/kfd.framework/kfd` |
+| `PURPLEPOIS0N_JB_HELPER` | Path to external jailbreak installer/bootstrap CLI | Spawned from bootstrap stage when mutation enabled |
+| `PURPLEPOIS0N_JB_HELPER_ARGS` | Extra args for JB helper (space-separated) | Optional |
+| `PURPLEPOIS0N_LIMERA1N` | Path to limera1n exploit dylib (Gen 0 DFU) | Historical delegate |
+| `PURPLEPOIS0N_EVASI0N` | Path to evasi0n exploit dylib (Gen 1 Normal) | Historical delegate |
+| `PURPLEPOIS0N_CHECKRA1N` | Path to checkra1n helper (Gen 5 DFU) | Historical delegate |
+| `PURPLEPOIS0N_IDEVICERESTORE` | idevicerestore binary (live TSS / signed restore) | libimobiledevice build |
+| `PURPLEPOIS0N_FUTURERESTORE` | futurerestore binary (saved APTicket + SEP/BB) | [tihmstar/futurerestore](https://github.com/tihmstar/futurerestore) |
+| `PURPLEPOIS0N_APTICKET` | Default `.shsh` / `.shsh2` path | Used with futurerestore probes |
+| `PURPLEPOIS0N_TSS_MODE` | `stock`, `futurerestore`, or `auto` | Default `auto` |
+| `PURPLEPOIS0N_FUTURERESTORE_*` | SEP/BB/latest flags | See [tss-futurerestore.md](docs/book/deep/tss-futurerestore.md) |
+| `PURPLEPOIS0N_RECOVERY_UPLOAD` | Pre-signed iBSS/iBEC for Recovery upload | With `--gen0` in Recovery mode |
+| `PURPLEPOIS0N_IM4M_MANIFEST` | IM4M for `ipsw img4 person` | Or extract via `--apticket` |
+
+Build with **libtatsu** for in-tree live TSS (`make release` auto-detects; or `brew install libtatsu`).
 
 If neither gaster nor ipwndfu is available, `-m` / `--checkm8` fails with a clear error (see `Checkm8.cpp`).
 
@@ -248,9 +273,13 @@ purplepois0n/
 
 The framework uses a **primitive taxonomy** (`include/primitives/`) with category abstract classes (Bootrom, Kernel, Codesign, Sandbox, Injection) and operation types (Read, Write, Patch, Inject, Execute, Probe). Built-in primitives register via `PrimitiveRegistry`; `ChainRunner` orchestrates Detect → Connect → Probe → Report stages.
 
+**Built-in probes (2026):** Gen6 chain modules (kfd, DarkSword, weightBufs, multicast_bytecopy, badRecovery, dmaFail, physrw, privilege, trustcache, bootstrap), historical stubs (limera1n, evasi0n, checkra1n), plus cross-gen probes: `Checkm8BootromPrimitive`, `OfflinePatchPrimitive`, `IpswdHostProbePrimitive`, `SandboxCapabilityProbePrimitive`, `AfcInjectionPrimitive`, `NormalModeProbePrimitive`, `BackupProbePrimitive`. Era-aware chains via `detectJailbreakGeneration()` / `runEraChain()`. See [docs/book/deep/primitives-gen0.md](docs/book/deep/primitives-gen0.md), [INTEGRATION_PLAN Phase 6–7](docs/legacy/INTEGRATION_PLAN.md), and [BACKPORT_MATRIX.md](docs/BACKPORT_MATRIX.md).
+
 - Default builds are **probe-only** (no auto-pwn).
-- Mutating primitives require `make plugins` (`PURPLEPOIS0N_ENABLE_EXPLOIT_PLUGINS`) **and** CLI opt-in (`-m` for checkm8).
+- Mutating primitives require `make plugins` (`PURPLEPOIS0N_ENABLE_EXPLOIT_PLUGINS`) **and** CLI opt-in (`-m` for checkm8; `--gen0` execute path when mutation enabled).
+- Gen 6 exploit modules delegate to external Dopamine `.framework` bundles via `dlopen` when `PURPLEPOIS0N_DOPAMINE_EXPLOITS` is set (`exploit_init` / `exploit_deinit`). Historical modules use `PURPLEPOIS0N_LIMERA1N`, `PURPLEPOIS0N_EVASI0N`, `PURPLEPOIS0N_CHECKRA1N`. Bootstrap stage can spawn `PURPLEPOIS0N_JB_HELPER`.
 - Register new primitives with `PrimitiveRegistry::registerBuiltin()` and hook via `ChainRunner`.
+- Gen 6 (Dopamine / PUAF): host prepares firmware offline (ipswd); exploit bytes stay **out of repo** (delegate only).
 
 Integration points:
 

@@ -5,8 +5,23 @@
 #include "primitives/PrimitiveRegistry.h"
 #include "primitives/Checkm8BootromPrimitive.h"
 #include "primitives/OfflinePatchPrimitive.h"
+#include "primitives/IpswdHostProbePrimitive.h"
+#include "primitives/SandboxCapabilityProbePrimitive.h"
 #include "primitives/AfcInjectionPrimitive.h"
 #include "primitives/NormalModeProbePrimitive.h"
+#include "primitives/BackupProbePrimitive.h"
+#include "primitives/TssSigningProbePrimitive.h"
+#include "primitives/RecoveryUploadPrimitive.h"
+#include "primitives/RecoveryBootChainPrimitive.h"
+#include "primitives/PongoProbePrimitive.h"
+#include "primitives/PongoBootChainPrimitive.h"
+#include "primitives/RamdiskShellPrimitive.h"
+#include "primitives/MobileBackup2ProbePrimitive.h"
+#include "primitives/CodesignSigningProbePrimitive.h"
+#include "primitives/SideloadPrimitive.h"
+#include "primitives/HistoricalExploitModules.h"
+#include "primitives/Gen6ExploitModules.h"
+#include "primitives/Gen6PostExploitModules.h"
 
 namespace PP {
 namespace primitives {
@@ -25,14 +40,64 @@ void PrimitiveRegistry::registerBuiltin(std::unique_ptr<Primitive> primitive) {
     mPrimitives.push_back(std::move(primitive));
 }
 
+void PrimitiveRegistry::registerBootromPrimitives() {
+    registerBuiltin(std::unique_ptr<Primitive>(new Checkm8BootromPrimitive()));
+}
+
+void PrimitiveRegistry::registerGen6ChainPrimitives() {
+    registerBuiltin(std::unique_ptr<Primitive>(new KernelcacheAcquisitionModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new XpfPatchfindingModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new KfdExploitModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new DarkSwordExploitModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new WeightBufsExploitModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new MulticastBytecopyExploitModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new BadRecoveryPacModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new DmaFailPplModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new PhysRwBuildModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new PrivilegeElevationModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new TrustCacheModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new LaunchdBootstrapModule()));
+}
+
+void PrimitiveRegistry::registerHistoricalExploitModules() {
+    registerBuiltin(std::unique_ptr<Primitive>(new Limera1nExploitModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new Kpwn24kExploitModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new Evasi0nExploitModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new Checkra1nExploitModule()));
+}
+
+void PrimitiveRegistry::registerBootChainPrimitives() {
+    registerBuiltin(std::unique_ptr<Primitive>(new RecoveryUploadPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new RecoveryBootChainPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new PongoProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new PongoBootChainPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new RamdiskShellPrimitive()));
+}
+
+void PrimitiveRegistry::registerHostProbePrimitives() {
+    registerBuiltin(std::unique_ptr<Primitive>(new OfflinePatchPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new IpswdHostProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new SandboxCapabilityProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new AfcInjectionPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new NormalModeProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new BackupProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new TssSigningProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new MobileBackup2ProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new CodesignSigningProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new SideloadPrimitive()));
+}
+
 void PrimitiveRegistry::registerBuiltins() {
     if (mBuiltinsRegistered) {
         return;
     }
-    registerBuiltin(std::unique_ptr<Primitive>(new Checkm8BootromPrimitive()));
-    registerBuiltin(std::unique_ptr<Primitive>(new OfflinePatchPrimitive()));
-    registerBuiltin(std::unique_ptr<Primitive>(new AfcInjectionPrimitive()));
-    registerBuiltin(std::unique_ptr<Primitive>(new NormalModeProbePrimitive()));
+
+    registerBootromPrimitives();
+    registerGen6ChainPrimitives();
+    registerHistoricalExploitModules();
+    registerBootChainPrimitives();
+    registerHostProbePrimitives();
+
     mBuiltinsRegistered = true;
 }
 

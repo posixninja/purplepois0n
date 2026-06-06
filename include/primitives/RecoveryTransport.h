@@ -24,6 +24,12 @@ public:
     void writeMemory(uint64_t address, const std::vector<uint8_t>& data) override;
     bool isLive() const override;
     const char* transportName() const override;
+    bool sendFile(const std::string& path) override;
+    bool resetDevice() override;
+    bool rebootDevice() override;
+    bool sendCommand(const std::string& command) override;
+    std::string getDeviceEnv(const std::string& name) const override;
+    std::vector<uint8_t> getApNonceBytes() const override;
 
     RecoveryDevice& device() { return mDevice; }
     const RecoveryDevice& device() const { return mDevice; }

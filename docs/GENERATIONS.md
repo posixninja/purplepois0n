@@ -21,6 +21,7 @@ For purplepois0n’s origin story, see [LINEAGE.md](LINEAGE.md).
 | redsn0w | iPhone Dev Team / community | 4.x–6.x (varies) | Tethered / semi |
 | Corona | pod2g | 5.0.1 | Untethered (companion) |
 | limera1n | geohot | 4.x era devices (A4-class) | Bootrom / DFU |
+| 24kpwn (0x24000) | planetbeing / Chronic Dev | 3.x–4.x old-BR 3GS, iPod 2G | Bootrom untether (DFU IMG3) |
 
 ### Jailbreak type
 
@@ -279,8 +280,8 @@ purplepois0n provides **host I/O** only; integrating checkm8 or palera1n would r
 | Tool | Team | iOS versions | Jailbreak type |
 |------|------|--------------|----------------|
 | Fugu15 / Fugu15 Max | Linus Henze | 15.x research chains | Research / semi paths |
-| Dopamine | opa334 | 15 – 16.x (varies) | Rootless semi-untethered |
-| Dopamine 2 | opa334 | 16 – 18+ (varies) | Rootless semi-untethered |
+| Dopamine | opa334 | 15 – 16.x stable; **2.5b3** arm64 17–18.7.x (beta) | Rootless semi-untethered |
+| Dopamine 2 | opa334 | Same — use [releases](https://github.com/opa334/Dopamine/releases) + [§3.1 matrix](book/deep/modern-era-web-sources.md#31-dopamine-support-matrix-release-sourced) | Rootless semi-untethered |
 | XinaA15 | Community | 15 (A12+, brief) | Rootless (abandoned) |
 | palera1n | palera1n team | 15+ on A8–A11 | Hardware + rootless/hybrid workflows |
 
@@ -292,25 +293,34 @@ purplepois0n provides **host I/O** only; integrating checkm8 or palera1n would r
 
 - **Sealed System Volume (SSV)** and read-only system layout—rootful installs largely obsolete.
 - **PPL**, **SPTM**, **TXM** on newer devices—kernel page protections beyond classic KTRR.
+- **PUAF / kfd era (2023+):** Physical use-after-free via dangling PTEs → **KRKW** (`libkfd`); Apple patched CVE-2023-23536 (PhysPuppet), CVE-2023-32434 (Smith), CVE-2023-41974 (Landa) in point releases.
+- **Dopamine 2.x** adds exploit picker (kfd + **dmaFail** PPL bypass + **weightBufs**, **multicast_bytecopy**, **DarkSword**), **XPF** patchfinder, launchd hook bootstrap.
 - **Procursus**, **ElleKit**, **roothide** replace classic Cydia + Substrate on many setups.
 - Exploits are highly **build-specific**; public window often closes quickly.
 
 ### Typical chain shape (conceptual)
 
-1. Userland or kernel exploit (sometimes multi-CVE).  
-2. Establish rootless bootstrap under `/var/jb` (paths vary by tool).  
-3. Bind-mount or inject tweaks without modifying sealed system; semi-untether re-run where applicable.
+**Dopamine 2 / PUAF path (representative):**
+
+1. PUAF primitive (dangling PTEs) via libkfd method or successor module.
+2. Kernel R/W (`kread`/`kwrite`).
+3. **PPL bypass** (e.g. **dmaFail**, CVE-2023-38606) where still applicable.
+4. XPF / tool-specific patchfinding; PAC helpers on arm64e.
+5. Rootless bootstrap under `/var/jb`; semi-untether re-run where applicable.
+
+**Dopamine 1 / arm64e path (representative):** oobPCI → PAC/PPL helpers → bootstrap (see [book/deep/puaf-kfd-era.md](book/deep/puaf-kfd-era.md)).
 
 ### purplepois0n mapping
 
 | Component | Role | Status |
 |-----------|------|--------|
 | [`AFCService`](../src/AFCService.cpp) | Transfer rootless payloads / logs from host | Implemented |
-| [`MachOParser`](../src/MachOParser.cpp) / [`DyldCacheParser`](../src/DyldCacheParser.cpp) | Analyze binaries and caches for research | Implemented |
+| [`MachOBinary`](../src/MachOBinary.cpp) / [`DyldSharedCache`](../src/DyldSharedCache.cpp) | IPSW / kernelcache research (ipswd / ipsw) | Implemented |
+| PUAF / kfd / Dopamine exploit modules | On-device kernel entry | **Out of repo** |
 | `performJailbreak()` Normal | Semi-untether / installer hook | **TODO** |
 | Procursus / Sileo / ElleKit install | Bootstrap packaging | **Out of repo scope** |
 
-Future optional doc: `docs/BOOTSTRAPS.md` for bootstrap ecosystem notes (not part of current tree).
+**Book:** [book/deep/puaf-kfd-era.md](book/deep/puaf-kfd-era.md) — PUAF, libkfd, Dopamine 2 architecture (conceptual). **Web sources:** [book/deep/modern-era-web-sources.md](book/deep/modern-era-web-sources.md).
 
 ---
 
@@ -360,7 +370,8 @@ Same as Generation 2–3: [`MachOParser`](../src/MachOParser.cpp) for **32-bit M
 | PAC (arm64e) | A12+ | Signed pointers; corrupt targets need gadgets |
 | PPL / SPTM / TXM | iOS 14–17+ | Page table and kernel protection layers |
 | Sealed System Volume | iOS 15+ | System partition integrity; drives rootless |
-| Hardened heap (kalloc_type, etc.) | iOS 15+ | Fewer classic kernel overflows |
+| Hardened heap (kalloc_type, etc.) | iOS 15+ | Fewer classic kernel overflows; VM/PTE bugs (PUAF class) gain prominence |
+| PUAF CVE patches (PhysPuppet/Smith/Landa) | iOS 16.4–17.0 point releases | Closes specific dangling-PTE primitives used by kfd |
 
 ---
 
@@ -383,10 +394,10 @@ Same as Generation 2–3: [`MachOParser`](../src/MachOParser.cpp) for **32-bit M
 | Gen 0 (greenpois0n / absinthe) | DFU, Recovery, Normal | `DFUDevice`, `RecoveryDevice`, `MobileBackup`, `AFCService` |
 | Gen 1–4 (evasi0n → Taurine) | Normal | `MobileDevice`, `AFCService`, `MachOParser`, `DyldCacheParser` |
 | Gen 5 (checkra1n / palera1n) | DFU, Recovery | `DFUDevice`, `RecoveryDevice` |
-| Gen 6 (Dopamine) | Normal | `AFCService`, parsers; rootless bootstrap external |
+| Gen 6 (Dopamine / PUAF) | Normal | `AFCService`, `MachOBinary`, `DyldSharedCache`; kfd/Dopamine external |
 
 All eras: exploit entry [`performJailbreak()`](../src/purplepois0n.cpp) — **placeholder**.
 
 ---
 
-See also: [LINEAGE.md](LINEAGE.md) · [docs index](README.md) · [Project README](../README.md)
+See also: [LINEAGE.md](LINEAGE.md) · [BACKPORT_MATRIX.md](BACKPORT_MATRIX.md) · [docs index](README.md) · [Project README](../README.md)

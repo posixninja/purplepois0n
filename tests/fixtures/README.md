@@ -87,6 +87,16 @@ g++ -std=c++14 -I"$HB/include" tests/fixtures/gen_keyed_blob.cpp -L"$HB/lib" -lp
 # then insert blob into Manifest.db (see repo history or manifest_db_keyed setup script)
 ```
 
+## crash_minimal
+
+Synthetic `.ips` crash log with ipsw-style `(slide=0x...)` stack lines (Phase 7.6).
+
+```bash
+./build/bin/purplepois0n --analyze-crash tests/fixtures/crash_minimal.ips
+```
+
+Expected: four images with slide values (`libobjc.A.dylib`, `CoreFoundation`, `CoreTelephony`, `kernelcache`).
+
 ## Mach-O smoke (no fixture)
 
 ```bash

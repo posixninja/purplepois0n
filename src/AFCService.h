@@ -9,6 +9,7 @@
 #define AFCSERVICE_H_
 
 #include <cstdio>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -16,6 +17,12 @@
 #include <libimobiledevice/libimobiledevice.h>
 
 namespace PP {
+
+/** One entry from an AFC directory listing. */
+struct AFCFileEntry {
+    std::string name;
+    bool isDirectory = false;
+};
 
 /**
  * @class AFCService
@@ -132,6 +139,57 @@ public:
 
         fclose(fp);
         afc_file_close(afc_client_, handle);
+    }
+
+    /**
+     * @brief List entries in a remote directory
+     * @param remotePath Directory path on the device (e.g. "/" or "/Books")
+     * @return Vector of file/directory names (skips "." and "..")
+     * @throws std::runtime_error if the listing fails
+     */
+    std::vector<AFCFileEntry> listDirectory(const std::string& remotePath) {
+        char** list = nullptr;
+        const afc_error_t err = afc_read_directory(afc_client_, remotePath.c_str(), &list);
+        if (err != AFC_E_SUCCESS || list == nullptr) {
+            throw std::runtime_error("Failed to read AFC directory: " + remotePath);
+        }
+
+        std::vector<AFCFileEntry> entries;
+        for (char** p = list; *p != nullptr; ++p) {
+            const char* name = *p;
+            if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+                continue;
+            }
+            AFCFileEntry entry;
+            entry.name = name;
+            if (name[0] != '\0' && name[strlen(name) - 1] == '/') {
+                entry.isDirectory = true;
+                if (!entry.name.empty()) {
+                    entry.name.resize(entry.name.size() - 1);
+                }
+            } else {
+                char** info = nullptr;
+                std::string fullPath = remotePath;
+                if (fullPath.empty() || fullPath[fullPath.size() - 1] != '/') {
+                    fullPath += '/';
+                }
+                fullPath += entry.name;
+                if (afc_get_file_info(afc_client_, fullPath.c_str(), &info) == AFC_E_SUCCESS &&
+                    info != nullptr) {
+                    for (char** q = info; *q != nullptr; q += 2) {
+                        if (*q != nullptr && strcmp(*q, "st_ifmt") == 0 && *(q + 1) != nullptr &&
+                            strcmp(*(q + 1), "S_IFDIR") == 0) {
+                            entry.isDirectory = true;
+                            break;
+                        }
+                    }
+                    afc_dictionary_free(info);
+                }
+            }
+            entries.push_back(entry);
+        }
+        afc_dictionary_free(list);
+        return entries;
     }
 
 private:

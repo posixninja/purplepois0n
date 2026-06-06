@@ -3,12 +3,14 @@
  */
 
 #include "Gen0Workflow.h"
+#include "Gen0Context.h"
 #include "DeviceManager.h"
 #include "Logger.h"
 #include "MobileBackup.h"
 #include "BackupProtocol.h"
 #include "MachOBinary.h"
 #include "DyldSharedCache.h"
+#include "CrashSlideHelper.h"
 #include "DFUDevice.h"
 #include "RecoveryDevice.h"
 #include "MobileDevice.h"
@@ -16,7 +18,21 @@
 #include "primitives/ChainRunner.h"
 #include "primitives/DfuTransport.h"
 #include "primitives/RecoveryTransport.h"
+#include "primitives/Gen6Types.h"
+#include "primitives/TssTypes.h"
+#include "primitives/TssDelegate.h"
+#include "primitives/CodesignDelegate.h"
+#include "primitives/CodesignTypes.h"
+#include "primitives/TrustCacheDelegate.h"
+#include "primitives/SideloadPrimitive.h"
+#include "primitives/PongoDelegate.h"
+#include "IpaSignHelper.h"
+#include "RamdiskPackager.h"
+#include "RamdiskWorkDir.h"
+#include "RamdiskInspector.h"
+#include "RamdiskClient.h"
 #include "../include/DeviceState.h"
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -42,6 +58,7 @@ void logDfuGap(const DFUDevice& device) {
         /* optional metadata */
     }
     Logger::warn("  greenpois0n era: limera1n / SHAtter (A4-class) — not implemented here.");
+    Logger::info("  old-BR 3GS / iPod 2G: 24kpwn (0x24000) untether — gen0-24kpwn stub / PURPLEPOIS0N_24KPWN.");
     Logger::info("  checkm8 (A5–A11): use -m/--checkm8 or jailbreak in DFU (requires gaster or ipwndfu).");
     Logger::info("  External tools: gaster (PURPLEPOIS0N_GASTER) or ipwndfu (PURPLEPOIS0N_IPWNDFU).");
     Logger::info("  Reference: " + std::string(kIpwndfuUrl));
@@ -70,7 +87,8 @@ void logRecoveryGap(uint64_t ecid, RecoveryDevice* device) {
             Logger::warn(oss.str());
         }
     }
-    Logger::warn("iBoot exploit chain, IMG3/ramdisk load, and restore helpers — NOT implemented.");
+    Logger::warn("iBoot exploit chain and restore FSM — NOT implemented.");
+    Logger::info("Recovery ramdisk builder + multi-stage chain — Partial (see recovery-ramdisk.md).");
     Logger::info("Historical greenpois0n used DFU bootrom entry first; Recovery is secondary.");
 }
 
@@ -84,6 +102,7 @@ void logNormalGap(const MobileDevice& device) {
         Logger::info("  iOS: " + iosVersion);
     }
     Logger::warn("Userland / backup-mediated jailbreak (absinthe-style) — NOT implemented.");
+    Logger::warn("  Gen 6 rootless (Dopamine / TrollStore) — on-device chain; host runs Gen6 primitives in --gen0.");
     Logger::warn("  No backup restore, staging, or untether install in-tree.");
     Logger::info("Educational host tools:");
     Logger::info("  --analyze-backup PATH   parse Manifest.db / mbdb / plist offline");
@@ -92,16 +111,19 @@ void logNormalGap(const MobileDevice& device) {
     Logger::info("See " + std::string(kSupportDoc) + " and book/deep/normal-mode-afc-backup.md");
 }
 
-primitives::ExecutionContext makeContext(DeviceState state,
-                                         const std::string& udid,
-                                         uint64_t ecid,
-                                         bool allowMutation) {
-    primitives::ExecutionContext ctx;
-    ctx.deviceState = state;
-    ctx.udid = udid;
-    ctx.ecid = ecid;
-    ctx.allowMutation = allowMutation;
-    return ctx;
+bool inferArm64e(const std::string& productType, const std::string& iosVersion) {
+    if (productType.find("iPhone11,") == 0 || productType.find("iPhone12,") == 0 ||
+        productType.find("iPhone13,") == 0 || productType.find("iPhone14,") == 0 ||
+        productType.find("iPhone15,") == 0 || productType.find("iPhone16,") == 0 ||
+        productType.find("iPhone17,") == 0) {
+        return true;
+    }
+    if (productType.find("iPad8,") == 0 || productType.find("iPad11,") == 0 ||
+        productType.find("iPad12,") == 0 || productType.find("iPad13,") == 0) {
+        return true;
+    }
+    (void)iosVersion;
+    return false;
 }
 
 void maybeWriteReport(primitives::ChainRunner& runner, const std::string& reportPath) {
@@ -147,7 +169,14 @@ bool runGen0Jailbreak(DeviceManager& manager,
 
     try {
         primitives::ChainRunner runner;
-        primitives::ExecutionContext ctx = makeContext(state, targetUDID, 0, false);
+        primitives::ExecutionContext ctx =
+            buildExecutionContext(state, options, targetUDID, 0, false);
+        bool workflowOk = true;
+
+        if (ctx.recoveryChain.empty() && ctx.recoveryChainRun && !ctx.ipswPath.empty()) {
+            const std::string workDir = resolveRamdiskWorkDir(ctx.ramdiskWorkDir);
+            populateDefaultRecoveryChain(ctx.ipswPath, workDir, &ctx.recoveryChain);
+        }
 
         switch (state) {
             case DeviceState::DFU: {
@@ -164,7 +193,25 @@ bool runGen0Jailbreak(DeviceManager& manager,
                 } catch (const std::exception&) {
                     /* optional */
                 }
+                ctx.jailbreakGeneration =
+                    primitives::detectJailbreakGeneration(ctx);
                 runner.runProbeChain(ctx);
+                if (options.pongo.execute &&
+                    (options.pongo.bootRun || options.pongo.probeRun)) {
+                    ctx.allowMutation = true;
+                    if (primitives::exploitPluginsEnabled() &&
+                        (options.pongo.spawnCheckra1n || options.pongo.bootRun)) {
+                        const primitives::PrimitiveResult spawn =
+                            primitives::PongoDelegate::spawnCheckra1nShell(true);
+                        if (spawn != primitives::PrimitiveResult::Success) {
+                            workflowOk = false;
+                        }
+                    }
+                    if (workflowOk &&
+                        !runner.runPongoMiniChain(ctx, true)) {
+                        workflowOk = false;
+                    }
+                }
                 break;
             }
             case DeviceState::Recovery: {
@@ -173,10 +220,27 @@ bool runGen0Jailbreak(DeviceManager& manager,
                 std::unique_ptr<RecoveryDevice> device = manager.getRecoveryDevice(ecid);
                 logRecoveryGap(ecid, device.get());
                 if (device) {
+                    ctx.cpid = device->getCpid();
+                    ctx.boardId = device->getBoardId();
+                    if (ctx.productType.empty()) {
+                        ctx.productType = device->getDeviceType();
+                    }
+                    if (ctx.iosVersion.empty()) {
+                        ctx.iosVersion = device->getFirmwareVersion();
+                    }
                     primitives::RecoveryTransport transport(*device);
                     ctx.transport = &transport;
                 }
+                ctx.backupPath = options.backupPath;
+                ctx.jailbreakGeneration =
+                    primitives::detectJailbreakGeneration(ctx);
                 runner.runProbeChain(ctx);
+                if (options.recovery.execute) {
+                    ctx.allowMutation = true;
+                    if (!runner.runExecuteChain(ctx)) {
+                        workflowOk = false;
+                    }
+                }
                 break;
             }
             case DeviceState::Normal: {
@@ -187,10 +251,17 @@ bool runGen0Jailbreak(DeviceManager& manager,
                 }
                 logNormalGap(*device);
                 ctx.udid = device->getUDID();
+                ctx.iosVersion = device->getValue("", "ProductVersion");
+                ctx.productType = device->getValue("", "ProductType");
+                ctx.arm64e = inferArm64e(ctx.productType, ctx.iosVersion);
+                ctx.backupPath = options.backupPath;
+                ctx.jailbreakGeneration =
+                    primitives::detectJailbreakGeneration(ctx);
                 runner.runProbeChain(ctx);
-                if (!options.backupPath.empty()) {
-                    Logger::info("Running backup analysis from --gen0 hook.");
-                    analyzeBackup(options.backupPath);
+                if (options.postJbPipeline && primitives::exploitPluginsEnabled()) {
+                    if (!runPostJbPipeline(manager, targetUDID, options)) {
+                        workflowOk = false;
+                    }
                 }
                 break;
             }
@@ -200,6 +271,9 @@ bool runGen0Jailbreak(DeviceManager& manager,
         }
 
         maybeWriteReport(runner, options.reportPath);
+        if (!workflowOk) {
+            return false;
+        }
     } catch (const std::exception& e) {
         Logger::error(std::string("Exception: ") + e.what());
         return false;
@@ -207,6 +281,134 @@ bool runGen0Jailbreak(DeviceManager& manager,
 
     Logger::info("Gen 0 scaffold finished (no exploit or untether was applied).");
     return true;
+}
+
+bool runTssCheck(DeviceManager& manager,
+                 const std::string& targetUDID,
+                 const std::string& productType,
+                 const std::string& iosVersion,
+                 uint64_t ecid,
+                 const std::string& ipswPath,
+                 const std::string& apticketPath) {
+    Logger::info("TSS / futurerestore signing probe (no restore)");
+
+    primitives::ExecutionContext ctx;
+    ctx.deviceState = DeviceState::Unknown;
+    ctx.productType = productType;
+    ctx.iosVersion = iosVersion;
+    ctx.ecid = ecid;
+    ctx.ipswPath = ipswPath;
+    ctx.apticketPath = apticketPath;
+    ctx.futureRestore = primitives::futureRestoreOptionsFromEnv();
+    if (!apticketPath.empty()) {
+        ctx.futureRestore.apticketPath = apticketPath;
+    }
+
+    if (!targetUDID.empty()) {
+        const DeviceState state = manager.detectDeviceState(targetUDID);
+        ctx.deviceState = state;
+        if (state == DeviceState::Normal) {
+            try {
+                auto device = manager.getMobileDevice(targetUDID);
+                if (device) {
+                    ctx.udid = device->getUDID();
+                    if (ctx.iosVersion.empty()) {
+                        ctx.iosVersion = device->getValue("", "ProductVersion");
+                    }
+                    if (ctx.productType.empty()) {
+                        ctx.productType = device->getValue("", "ProductType");
+                    }
+                }
+            } catch (const std::exception& e) {
+                Logger::error(std::string("Normal connect failed: ") + e.what());
+                return false;
+            }
+        } else if (state == DeviceState::Recovery && ecid != 0) {
+            ctx.ecid = ecid;
+        }
+    }
+
+    const bool savedTicketPlan =
+        !ctx.ipswPath.empty() &&
+        primitives::TssDelegate::resolveSigningMode(ctx) == primitives::TssSigningMode::SavedApTicket;
+
+    if (ctx.productType.empty() || ctx.iosVersion.empty()) {
+        if (!savedTicketPlan) {
+            Logger::error("Need -d UDID (Normal) or pass ProductType + iOS version for signing check");
+            primitives::TssDelegate::logProcessOverview(ctx);
+            return false;
+        }
+        primitives::TssDelegate::logProcessOverview(ctx);
+    }
+
+    primitives::PrimitiveResult probeResult = primitives::PrimitiveResult::Success;
+    if (!ctx.productType.empty() && !ctx.iosVersion.empty()) {
+        probeResult = primitives::TssDelegate::probe(ctx);
+        if (probeResult != primitives::PrimitiveResult::Success) {
+            return false;
+        }
+    }
+
+    if (savedTicketPlan) {
+        if (!primitives::TssDelegate::isFuturerestoreConfigured()) {
+            Logger::error("  [TSS] futurerestore required for saved-blob restore planning");
+            return false;
+        }
+        primitives::TssDelegate::runFuturerestoreRestore(ctx, false);
+    }
+
+    return true;
+}
+
+bool fetchLiveShsh(DeviceManager& manager,
+                   const std::string& targetUDID,
+                   const std::string& ipswPath,
+                   const std::string& outputPath) {
+    Logger::info("Fetching live SHSH (libtatsu / ipsw) — no restore");
+
+    primitives::ExecutionContext ctx;
+    ctx.ipswPath = ipswPath;
+    ctx.futureRestore = primitives::futureRestoreOptionsFromEnv();
+
+    if (!targetUDID.empty()) {
+        const DeviceState state = manager.detectDeviceState(targetUDID);
+        ctx.deviceState = state;
+        if (state == DeviceState::Normal) {
+            try {
+                auto device = manager.getMobileDevice(targetUDID);
+                if (device) {
+                    ctx.udid = device->getUDID();
+                    ctx.iosVersion = device->getValue("", "ProductVersion");
+                    ctx.productType = device->getValue("", "ProductType");
+                }
+            } catch (const std::exception& e) {
+                Logger::error(std::string("Normal connect failed: ") + e.what());
+                return false;
+            }
+        } else if (state == DeviceState::Recovery) {
+            const uint64_t ecid = manager.getRecoveryEcid();
+            ctx.ecid = ecid;
+            try {
+                std::unique_ptr<RecoveryDevice> device = manager.getRecoveryDevice(ecid);
+                if (device) {
+                    ctx.cpid = device->getCpid();
+                    ctx.boardId = device->getBoardId();
+                    ctx.productType = device->getDeviceType();
+                    ctx.iosVersion = device->getFirmwareVersion();
+                    primitives::RecoveryTransport transport(*device);
+                    ctx.transport = &transport;
+                    return primitives::TssDelegate::fetchLiveShsh(ctx, outputPath) ==
+                           primitives::PrimitiveResult::Success;
+                }
+            } catch (const std::exception& e) {
+                Logger::error(std::string("Recovery connect failed: ") + e.what());
+                return false;
+            }
+        }
+    }
+
+    return primitives::TssDelegate::fetchLiveShsh(ctx, outputPath) ==
+           primitives::PrimitiveResult::Success;
 }
 
 bool analyzeBackup(const std::string& backupPath) {
@@ -269,6 +471,20 @@ bool analyzeBackup(const std::string& backupPath) {
         Logger::error(std::string("Backup analysis failed: ") + e.what());
         return false;
     }
+}
+
+bool analyzeCrashLog(const std::string& crashPath) {
+    Logger::info("Analyzing crash log (research only; no staging): " + crashPath);
+
+    CrashSlideSummary summary;
+    if (!parseCrashSlideFile(crashPath, &summary)) {
+        Logger::error("No slide annotations found in: " + crashPath);
+        return false;
+    }
+
+    printCrashSlideSummary(summary, std::cout);
+    Logger::info("Crash slide analysis complete.");
+    return true;
 }
 
 bool analyzeBinary(const std::string& binaryPath,
@@ -424,6 +640,318 @@ bool analyzeDyldCache(const std::string& cachePath, const std::string& payloadJs
         Logger::error(std::string("dyld cache analysis failed: ") + e.what());
         return false;
     }
+}
+
+bool runHostCodesign(const std::string& inputPath,
+                     const primitives::CodesignOptions& options,
+                     bool allowMutation) {
+    if (inputPath.empty()) {
+        Logger::error("codesign requires an input path");
+        return false;
+    }
+    primitives::CodesignOptions opts =
+        primitives::CodesignDelegate::mergeOptions(options, primitives::codesignOptionsFromEnv());
+    return primitives::CodesignDelegate::signPath(opts, inputPath, allowMutation) ==
+           primitives::PrimitiveResult::Success;
+}
+
+bool runHostSignIpa(const std::string& ipaPath,
+                    const std::string& outputIpaPath,
+                    const primitives::CodesignOptions& options,
+                    bool allowMutation) {
+    if (ipaPath.empty()) {
+        Logger::error("sign-ipa requires an IPA path");
+        return false;
+    }
+    primitives::CodesignOptions opts =
+        primitives::CodesignDelegate::mergeOptions(options, primitives::codesignOptionsFromEnv());
+    return !signIpa(opts, ipaPath, outputIpaPath, allowMutation).empty();
+}
+
+bool runSideloadInstall(DeviceManager& manager,
+                         const std::string& targetUDID,
+                         const std::string& ipaPath,
+                         bool allowMutation) {
+    if (targetUDID.empty()) {
+        Logger::error("install-ipa requires -d UDID");
+        return false;
+    }
+    if (manager.detectDeviceState(targetUDID) != DeviceState::Normal) {
+        Logger::error("install-ipa requires trusted Normal mode");
+        return false;
+    }
+    try {
+        auto device = manager.getMobileDevice(targetUDID);
+        if (!device) {
+            Logger::error("Failed to connect in normal mode");
+            return false;
+        }
+        primitives::ExecutionContext ctx;
+        ctx.deviceState = DeviceState::Normal;
+        ctx.udid = device->getUDID();
+        ctx.ipaInstallPath = ipaPath;
+        ctx.allowMutation = allowMutation;
+        primitives::SideloadPrimitive primitive;
+        return primitive.execute(ctx) == primitives::PrimitiveResult::Success;
+    } catch (const std::exception& e) {
+        Logger::error(std::string("install-ipa failed: ") + e.what());
+        return false;
+    }
+}
+
+bool runTrustCacheAdd(const std::string& binaryPath, bool allowMutation) {
+    primitives::ExecutionContext ctx;
+    ctx.trustCachePath = binaryPath;
+    ctx.allowMutation = allowMutation;
+    return runTrustCacheAddWithContext(ctx, allowMutation);
+}
+
+bool runTrustCacheAddWithContext(const primitives::ExecutionContext& context, bool allowMutation) {
+    primitives::ExecutionContext ctx = context;
+    ctx.allowMutation = allowMutation;
+    return primitives::TrustCacheDelegate::addToTrustCache(ctx, allowMutation) ==
+           primitives::PrimitiveResult::Success;
+}
+
+bool runPostJbPipeline(DeviceManager& manager,
+                       const std::string& targetUDID,
+                       const Gen0Options& options) {
+    Logger::info("Post-jailbreak pipeline: sign → install → trustcache");
+
+    if (!primitives::exploitPluginsEnabled()) {
+        Logger::error("Post-jb pipeline requires make plugins");
+        return false;
+    }
+
+    std::string ipaToInstall = options.ipaInstallPath;
+    if (ipaToInstall.empty()) {
+        Logger::error("Post-jb pipeline requires --install-ipa PATH");
+        return false;
+    }
+
+    if (!options.codesignInputPath.empty()) {
+        const std::string signedOut =
+            options.codesignOutputPath.empty() ? (ipaToInstall + ".signed") : options.codesignOutputPath;
+        if (!runHostSignIpa(options.codesignInputPath, signedOut, options.codesign, true)) {
+            return false;
+        }
+        ipaToInstall = signedOut;
+    }
+
+    if (!runSideloadInstall(manager, targetUDID, ipaToInstall, true)) {
+        return false;
+    }
+
+    if (!options.trustCachePath.empty()) {
+        RamdiskConnectOptions connect = options.ramdisk.connect;
+        if (connect.udid.empty() && !targetUDID.empty()) {
+            connect.udid = targetUDID;
+        }
+        primitives::ExecutionContext ctx;
+        ctx.deviceState = DeviceState::Normal;
+        ctx.trustCachePath = options.trustCachePath;
+        ctx.ramdiskConnect = connect;
+        ctx.allowMutation = true;
+        if (!runTrustCacheAddWithContext(ctx, true)) {
+            return false;
+        }
+    }
+
+    Logger::info("Post-jb pipeline complete");
+    return true;
+}
+
+bool runFuturerestoreRestore(const Gen0Options& options, bool allowMutation) {
+    Logger::info("futurerestore restore (destructive — user-initiated only)");
+
+    if (options.ipswPath.empty()) {
+        Logger::error("futurerestore restore requires --ipsw PATH");
+        return false;
+    }
+    if (options.apticketPath.empty() &&
+        options.futureRestore.apticketPath.empty()) {
+        Logger::error("futurerestore restore requires --apticket PATH");
+        return false;
+    }
+
+    primitives::ExecutionContext ctx;
+    ctx.ipswPath = options.ipswPath;
+    ctx.apticketPath = options.apticketPath;
+    ctx.futureRestore = options.futureRestore;
+    if (ctx.futureRestore.apticketPath.empty() && !ctx.apticketPath.empty()) {
+        ctx.futureRestore.apticketPath = ctx.apticketPath;
+    }
+    ctx.allowMutation = allowMutation;
+
+    if (!primitives::TssDelegate::isFuturerestoreConfigured()) {
+        Logger::error("futurerestore not found — set PURPLEPOIS0N_FUTURERESTORE");
+        return false;
+    }
+
+    return primitives::TssDelegate::runFuturerestoreRestore(ctx, allowMutation) ==
+           primitives::PrimitiveResult::Success;
+}
+
+bool runBuildRamdisk(const RamdiskOptions& options, const std::string& overlayDir,
+                     const std::vector<RamdiskStageEntry>& stagedFiles,
+                     const std::string& outputPath) {
+    if (outputPath.empty()) {
+        Logger::error("build-ramdisk requires --build-ramdisk PATH or --output");
+        return false;
+    }
+    Logger::info("Building in-memory HFS+ ramdisk (no hdiutil mount)");
+    if (!buildRamdiskDmg(options, overlayDir, stagedFiles, outputPath)) {
+        return false;
+    }
+    if (!ramdiskLooksLikeHfsPlus(outputPath)) {
+        Logger::warn("  [Ramdisk] H+ signature check failed at offset 1024");
+        return false;
+    }
+    Logger::info("  [Ramdisk] HFS+ volume ready: " + outputPath);
+    return true;
+}
+
+bool runRamdiskFromIpsw(const RamdiskOptions& options, const std::string& ipswPath,
+                        const std::string& ident, const std::string& overlayDir,
+                        const std::vector<RamdiskStageEntry>& stagedFiles,
+                        const std::string& workDir, const std::string& outputPath) {
+    if (ipswPath.empty()) {
+        Logger::error("ramdisk-from-ipsw requires --ipsw");
+        return false;
+    }
+    const std::string resolvedWork = resolveRamdiskWorkDir(workDir);
+    RamdiskPackagerResult result;
+    const std::string variant = ident.empty() ? std::string("Erase") : ident;
+    if (!packRamdiskFromIpsw(options, ipswPath, variant, overlayDir, stagedFiles, resolvedWork,
+                             &result)) {
+        return false;
+    }
+    const std::string dest = outputPath.empty() ? result.im4pPath : outputPath;
+    if (dest != result.im4pPath) {
+        std::ifstream in(result.im4pPath.c_str(), std::ios::binary);
+        std::ofstream out(dest.c_str(), std::ios::binary | std::ios::trunc);
+        if (!in.is_open() || !out.is_open()) {
+            Logger::error("  [Ramdisk] failed to copy IM4P to " + dest);
+            return false;
+        }
+        out << in.rdbuf();
+    }
+    Logger::info("  [Ramdisk] packaged rdsk IM4P → " + dest);
+    return true;
+}
+
+bool populateDefaultRecoveryChain(
+    const std::string& ipswPath, const std::string& workDir,
+    std::vector<primitives::ExecutionContext::RecoveryChainComponent>* chain) {
+    if (chain == nullptr || ipswPath.empty()) {
+        return false;
+    }
+    ensureDirectory(workDir);
+    chain->clear();
+
+    std::string ibssPath;
+    if (locateIpswIm4pComponent(ipswPath, workDir, "iBSS.*im4p", &ibssPath)) {
+        primitives::ExecutionContext::RecoveryChainComponent ibss;
+        ibss.fourcc = "iBSS";
+        ibss.ipswComponentPath = ibssPath;
+        chain->push_back(ibss);
+    }
+
+    std::string ibecPath;
+    if (locateIpswIm4pComponent(ipswPath, workDir + "/ibec", "iBEC.*im4p", &ibecPath)) {
+        primitives::ExecutionContext::RecoveryChainComponent ibec;
+        ibec.fourcc = "iBEC";
+        ibec.ipswComponentPath = ibecPath;
+        chain->push_back(ibec);
+    }
+
+    primitives::ExecutionContext::RecoveryChainComponent rdsk;
+    rdsk.fourcc = "RestoreRamDisk";
+    chain->push_back(rdsk);
+
+    Logger::info("  [Recovery] default chain: " + std::to_string(chain->size()) + " stage(s)");
+    return !chain->empty();
+}
+
+bool runRamdiskProbe(const RamdiskConnectOptions& options, std::string* message) {
+    RamdiskClient client(options);
+    return client.probe(message);
+}
+
+bool runRamdiskExec(const RamdiskConnectOptions& options, const std::string& command) {
+    if (command.empty()) {
+        Logger::error("ramdisk-exec requires a command");
+        return false;
+    }
+    RamdiskClient client(options);
+    std::string probeMsg;
+    if (!client.probe(&probeMsg)) {
+        Logger::error("  [Ramdisk] SSH unavailable: " + probeMsg);
+        Logger::info("  [Ramdisk] note: stock IPSW RestoreRamDisk has no agent — use --ramdisk-overlay");
+        Logger::info("  [Ramdisk] default transport is TCP (4444); use --ramdisk-transport ssh for sshd");
+        return false;
+    }
+    const RamdiskCommandResult result = client.exec(command);
+    if (!result.stdoutText.empty()) {
+        std::cout << result.stdoutText;
+    }
+    if (result.exitCode != 0) {
+        Logger::error("  [Ramdisk] exec failed: " + result.stderrText);
+        return false;
+    }
+    return true;
+}
+
+bool runRamdiskPush(const RamdiskConnectOptions& options, const std::string& localPath,
+                    const std::string& remotePath) {
+    if (localPath.empty() || remotePath.empty()) {
+        Logger::error("ramdisk-push requires LOCAL and REMOTE paths");
+        return false;
+    }
+    RamdiskClient client(options);
+    std::string probeMsg;
+    if (!client.probe(&probeMsg)) {
+        Logger::error("  [Ramdisk] SSH unavailable: " + probeMsg);
+        Logger::info("  [Ramdisk] note: stock IPSW RestoreRamDisk has no agent — use --ramdisk-overlay");
+        Logger::info("  [Ramdisk] default transport is TCP (4444); use --ramdisk-transport ssh for sshd");
+        return false;
+    }
+    return client.uploadFile(localPath, remotePath);
+}
+
+bool runRamdiskPull(const RamdiskConnectOptions& options, const std::string& remotePath,
+                    const std::string& localPath) {
+    if (localPath.empty() || remotePath.empty()) {
+        Logger::error("ramdisk-pull requires REMOTE and LOCAL paths");
+        return false;
+    }
+    RamdiskClient client(options);
+    std::string probeMsg;
+    if (!client.probe(&probeMsg)) {
+        Logger::error("  [Ramdisk] SSH unavailable: " + probeMsg);
+        Logger::info("  [Ramdisk] note: stock IPSW RestoreRamDisk has no agent — use --ramdisk-overlay");
+        Logger::info("  [Ramdisk] default transport is TCP (4444); use --ramdisk-transport ssh for sshd");
+        return false;
+    }
+    return client.downloadFile(remotePath, localPath);
+}
+
+bool runRamdiskList(const RamdiskConnectOptions& options, const std::string& remotePath) {
+    RamdiskClient client(options);
+    std::string probeMsg;
+    if (!client.probe(&probeMsg)) {
+        Logger::error("  [Ramdisk] SSH unavailable: " + probeMsg);
+        Logger::info("  [Ramdisk] note: stock IPSW RestoreRamDisk has no agent — use --ramdisk-overlay");
+        Logger::info("  [Ramdisk] default transport is TCP (4444); use --ramdisk-transport ssh for sshd");
+        return false;
+    }
+    const RamdiskCommandResult result = client.listDirectory(remotePath);
+    if (result.exitCode != 0) {
+        Logger::error("  [Ramdisk] ls failed: " + result.stderrText);
+        return false;
+    }
+    std::cout << result.stdoutText;
+    return true;
 }
 
 } /* namespace PP */

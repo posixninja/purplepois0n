@@ -307,7 +307,8 @@ purplepois0n uses libirecovery **directly** (not idevicerestore's state machine)
 | Implemented | Missing |
 |-------------|---------|
 | `DFUDevice` / `RecoveryDevice` on `irecv_client_t` (libirecovery 1.x) | — (progress via `IRecvProgressSubscription`) |
-| ECID + CPID in DFU/Recovery enumeration (`IRecvUtil`, `-l`) | IMG3 parse, TSS, restore FSM |
+| ECID + CPID in DFU/Recovery enumeration (`IRecvUtil`, `-l`) | In-tree libtss; IMG3 personalize (7.5) |
+| TSS probe + futurerestore argv (`TssDelegate`, `TssSigningProbePrimitive`) | Full idevicerestore FSM |
 | Retry on `irecv_open_with_ecid` (10× / 1s) | Full idevicerestore orchestration |
 | USB memory R/W with 32-bit address split | In-tree limera1n/checkm8 USB sequences |
 | checkm8 external invoke (`Checkm8`, `-m`) | Pongo / KPF / ramdisk load |
@@ -318,7 +319,9 @@ purplepois0n uses libirecovery **directly** (not idevicerestore's state machine)
 |------|--------|
 | `dfu_client_new()` retry loop | `limera1n.c` in idevicerestore |
 | `irecv_progress_callback` pattern | Full restore orchestration without explicit scope |
-| `tools/irecovery.c` CLI UX | SHSH/blob signing paths |
+| `tools/irecovery.c` CLI UX | Full restore FSM without scope |
+| idevicerestore `tss.c` / libtss patterns | Vendored libtss link (7.10 partial — delegate today) |
+| futurerestore SEP/BB manifest split | Documented in [tss-futurerestore.md](../book/deep/tss-futurerestore.md) |
 
 ### Key files
 
@@ -421,6 +424,7 @@ Personal forks that often **predate or parallel** Chronic-Dev releases: `syringe
 8. **checkm8 is a different generation:** ipwndfu/gaster belong to Gen 5; wire via `Checkm8`, not limera1n paths.
 9. **Open libraries won:** Modern purplepois0n correctly links libimobiledevice/libirecovery rather than vendoring syringe's curl/zlib trees.
 10. **Educational boundary is explicit:** absinthe's `jailbreak.c` and syringe's `exploits/` are study-only; port parsers and transport, not staging.
+11. **Gen 6 mirrors are selective:** `legacy/modern-era/` (16 repos) — full synthesis in [MODERN_ERA_LEARNINGS.md](MODERN_ERA_LEARNINGS.md); host stays offline/USB; Dopamine chain is on-device study only.
 
 ---
 

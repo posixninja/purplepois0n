@@ -42,11 +42,13 @@ Files under [`deep/`](deep/) are **extended L5** walkthroughs with mermaid diagr
 
 | File | Topic |
 |------|--------|
-| [deep/primitives-gen0.md](deep/primitives-gen0.md) | Primitive taxonomy, `ChainRunner`, `Gen0Workflow` |
+| [deep/primitives-gen0.md](deep/primitives-gen0.md) | Primitive taxonomy, `ChainRunner`, `Gen0Workflow`, Phase 6 Gen 6 probes |
 | [deep/device-manager.md](deep/device-manager.md) | `DeviceManager` detection, enumeration, factory methods |
 | [deep/dfu-recovery.md](deep/dfu-recovery.md) | `DFUDevice`, `RecoveryDevice`, `IRecvUtil`, irecv USB surface |
 | [deep/normal-mode-afc-backup.md](deep/normal-mode-afc-backup.md) | `MobileDevice`, `AFCService`, `MobileBackup` |
-| [deep/binary-parsers.md](deep/binary-parsers.md) | `DyldCacheParser`, `MachOParser` |
+| [deep/binary-parsers.md](deep/binary-parsers.md) | `DyldCacheParser`, `MachOParser`, ipswd opaque handles |
+| [deep/puaf-kfd-era.md](deep/puaf-kfd-era.md) | PUAF, libkfd, Dopamine 2.x kernel primitive stack (conceptual) |
+| [deep/modern-era-web-sources.md](deep/modern-era-web-sources.md) | Web bibliography — CVEs, upstream repos, talks, threat intel |
 
 Read a chapter’s L5 first; open a deep file when you need implementation detail beyond the era summary.
 
@@ -58,6 +60,7 @@ Read a chapter’s L5 first; open a deep file when you need implementation detai
 | Understand why an era felt different | L1 + L2 |
 | Security course / mitigation study | L3 across chapters + GENERATIONS mitigation table |
 | Reimplement host I/O (not exploits) | L4 + `deep/` + root [README.md](../../README.md) |
+| Study PUAF / Dopamine public sources | [modern-era-web-sources.md](deep/modern-era-web-sources.md) + [puaf-kfd-era.md](deep/puaf-kfd-era.md) |
 | Extend purplepois0n | L5 in target era + all of `deep/` + [legacy/PHASE_STATUS.md](../legacy/PHASE_STATUS.md) |
 | Study legacy sources before porting | [legacy/REPO_INDEX.md](../legacy/REPO_INDEX.md) + [legacy/LEARNINGS.md](../legacy/LEARNINGS.md) |
 

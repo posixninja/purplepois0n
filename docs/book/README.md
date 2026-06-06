@@ -31,8 +31,11 @@ Extended **L5** tours with mermaid diagrams and line-referenced source:
 | [deep/primitives-gen0.md](deep/primitives-gen0.md) | Primitive taxonomy, `ChainRunner`, `Gen0Workflow` |
 | [deep/device-manager.md](deep/device-manager.md) | `DeviceManager` |
 | [deep/dfu-recovery.md](deep/dfu-recovery.md) | `DFUDevice`, `RecoveryDevice`, `IRecvUtil` |
+| [deep/24kpwn.md](deep/24kpwn.md) | 0x24000 Segment Overflow, `gen0-24kpwn` stub |
 | [deep/normal-mode-afc-backup.md](deep/normal-mode-afc-backup.md) | `MobileDevice`, `AFCService`, `MobileBackup` |
-| [deep/binary-parsers.md](deep/binary-parsers.md) | `DyldCacheParser`, `MachOParser` |
+| [deep/binary-parsers.md](deep/binary-parsers.md) | `DyldCacheParser`, `MachOParser`, ipswd |
+| [deep/puaf-kfd-era.md](deep/puaf-kfd-era.md) | PUAF, kfd/libkfd, Dopamine 2 era |
+| [deep/modern-era-web-sources.md](deep/modern-era-web-sources.md) | Web source catalog (CVEs, repos, guides) |
 
 ## Reading order
 
@@ -45,7 +48,7 @@ Extended **L5** tours with mermaid diagrams and line-referenced source:
 | 4 | [04-yalu-ios10.md](04-yalu-ios10.md) | yalu, Meridian, iOS 10 semi-untether (~2016–2018) |
 | 5 | [05-unc0ver-electra-coolstar.md](05-unc0ver-electra-coolstar.md) | Electra, unc0ver, Chimera, Odyssey, Taurine (~2018–2021) |
 | 6 | [06-checkra1n-palera1n.md](06-checkra1n-palera1n.md) | checkm8, checkra1n, palera1n (~2019–present) |
-| 7 | [07-dopamine-rootless.md](07-dopamine-rootless.md) | Dopamine, rootless (~2021–present) |
+| 7 | [07-dopamine-rootless.md](07-dopamine-rootless.md) | Dopamine, rootless, **PUAF/kfd** (~2021–present) |
 | A | [appendix-32bit-legacy.md](appendix-32bit-legacy.md) | Phoenix, Home Depot, 32-bit overlap (optional) |
 
 **Suggested path for newcomers**

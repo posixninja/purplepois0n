@@ -2,7 +2,7 @@
 
 Phased roadmap for evolving purplepois0n using **read-only** lessons from [`legacy/`](../../legacy/). This plan ports **host I/O, parsers, and workflow scaffolding** only—not exploit blobs or weaponized backup staging.
 
-**Inputs:** [LEARNINGS.md](LEARNINGS.md) · [REPO_INDEX.md](REPO_INDEX.md) · [SUPPORT.md](../SUPPORT.md)
+**Inputs:** [LEARNINGS.md](LEARNINGS.md) · [REPO_INDEX.md](REPO_INDEX.md) · [SUPPORT.md](../SUPPORT.md) · [BACKPORT_MATRIX.md](../BACKPORT_MATRIX.md)
 
 ---
 
@@ -23,6 +23,13 @@ flowchart LR
     P2 --> P5
     P3 --> P5
     P4 --> P5
+    P2 --> P6
+    P3 --> P6
+    P5 --> P6
+    P6[Phase 6 Gen6 primitives]
+    P6 --> P7
+    P3 --> P7
+    P7[Phase 7 Backport]
 ```
 
 | Phase | Priority | Effort | Depends on | Status (2026-06-03) |
@@ -33,6 +40,8 @@ flowchart LR
 | 3 — Gen0 workflow hooks | P1 | 1 week | Phase 1 | **Complete** |
 | 4 — checkm8 status | P2 | ongoing | external gaster/ipwndfu | **~90%** (hardware smoke optional) |
 | 5 — Book chapter updates | P2 | 1 week | Phases 1–2 | **Complete** |
+| 6 — Modern era primitives & host research | P1 | 2–3 weeks | Phases 2–3 | **In progress** |
+| 7 — Backport & multi-generation chains | P1 | 2–4 weeks | Phases 3, 6 | **Planned** — [BACKPORT_MATRIX.md](../BACKPORT_MATRIX.md) |
 
 ---
 
@@ -256,6 +265,110 @@ Refresh book L5 sections with **legacy path citations** and post-Phase 1/2 purpl
 
 ---
 
+## Phase 6: Modern era primitives & host research (Gen 6 lane)
+
+**Priority:** P1 — **in progress**
+
+### Goals
+
+Extend the primitive framework and `Gen0Workflow` for **Generation 6 (rootless / PUAF / Dopamine era)** host research—without embedding libkfd, Dopamine exploit modules, or bootstrap packages. purplepois0n stays a **host-side** companion: offline IPSW analysis, honest capability probes, Normal-mode USB, and future hooks to delegate on-device jailbreak apps.
+
+| Goal | Rationale |
+|------|-----------|
+| **Firmware analysis probe** | Surface ipswd/ipsw availability during `--gen0` so researchers know offline backend before `--analyze-*` |
+| **Kernel lane honesty** | Mode-aware probes: DFU → checkm8; Normal → Gen 6 out-of-repo; offline → kernelcache study only |
+| **Sandbox boundary** | Document parse-only backup path vs absinthe staging; separate AFC reachability probe |
+| **Device gating context** | `ExecutionContext.iosVersion` / `productType` for future semi-untether delegation and version checks |
+| **Semi-untether hook** | `performJailbreak()` Normal branch delegates to external app (TrollStore/Dopamine)—not in-tree exploit bytes |
+
+### Primitive taxonomy (target state)
+
+| Category | Built-in probe (now) | Planned (Phase 6+) |
+|----------|----------------------|---------------------|
+| **Bootrom** | `Checkm8BootromPrimitive` | — |
+| **Kernel** | Gen6 exploit modules + `Limera1nExploitModule`, `Evasi0nExploitModule`, `Checkra1nExploitModule` | More historical families as needed |
+| **Codesign** | `OfflinePatchPrimitive`, `IpswdHostProbePrimitive` | Offline patch engine plugin (no bundled offsets) |
+| **Sandbox** | `SandboxCapabilityProbePrimitive` | — |
+| **Injection** | `AfcInjectionPrimitive`, `NormalModeProbePrimitive`, `BackupProbePrimitive` | — |
+
+### Tasks
+
+- [x] **6.1 ExecutionContext gating fields** — `iosVersion`, `productType` on Normal connect.
+- [x] **6.2 IpswdHostProbePrimitive** — ping ipswd; log `--analyze-binary` / `--analyze-dyldcache` / `--analyze-json`.
+- [x] **6.3 Gen6 exploit module chain** — Dopamine-shaped modules replace legacy kernel-capability probe.
+- [x] **6.4 SandboxCapabilityProbePrimitive** — sandbox escape / backup-staging boundary probe.
+- [x] **6.5 NormalModeProbePrimitive** — log ProductVersion + ProductType alongside app count.
+- [x] **6.6 Gen0 Normal gap text** — mention Gen 6 rootless / TrollStore delegation boundary.
+- [x] **6.7 performJailbreak() delegate + JB_HELPER** — `ExploitDelegate` + `JbHelperDelegate` (`PURPLEPOIS0N_JB_HELPER`).
+- [x] **6.8 AFC CLI** — `--afc-list`, `--afc-push`, `--afc-pull` on `AFCService`.
+- [x] **6.9 Backup-in-probe-chain** — `BackupProbePrimitive` when backup path in `ExecutionContext`.
+- [ ] **6.10 Encrypted backup decrypt** — deferred; document only unless keybag scope approved.
+- [x] **6.11 Gen 6 mirror clones** — `legacy/clone-modern-era.sh` + [MODERN_ERA_LEARNINGS.md](MODERN_ERA_LEARNINGS.md) synthesis.
+
+### Acceptance criteria
+
+- `--gen0` in any mode runs **ipswd-host-probe**, **kernel-capability-probe**, and **sandbox-capability-probe** in Probe stage.
+- Normal `--gen0` logs iOS version and product type in chain report.
+- No new in-tree kernel exploit modules, libkfd, or Dopamine binaries.
+- [SUPPORT.md](../SUPPORT.md) and [primitives-gen0.md](../book/deep/primitives-gen0.md) list all built-in primitives and Phase 6 planned rows.
+
+### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Users expect Dopamine install from host | WARN logs + docs; delegate hook is optional env only |
+| ipswd false negative in CI | Probe logs fallback; `make test-fixtures` unchanged |
+| Primitive sprawl | One probe per category gap; mutating ops stay gated |
+
+### Related docs
+
+- [book/deep/puaf-kfd-era.md](../book/deep/puaf-kfd-era.md) — Gen 6 architecture (conceptual)
+- [book/deep/modern-era-web-sources.md](../book/deep/modern-era-web-sources.md) — support matrix / CVE bibliography
+- [BOOGERAIDS.md](../BOOGERAIDS.md) — ipswd JSON handoff
+
+---
+
+## Phase 7: Backport & multi-generation chains
+
+**Status:** **In progress** — see [BACKPORT_MATRIX.md](../BACKPORT_MATRIX.md) for the full feasibility grid.
+
+### Goals
+
+- Reuse Gen 6 **orchestration** (delegate, module registry, chain stages) for Gen 0–5 without vendoring exploit bytes.
+- Port remaining **legacy host features** (IMG3 upload, crash-slide parser, era-trimmed chains).
+- Keep [SUPPORT.md](../SUPPORT.md) honest: probes and delegates yes; shipping jailbreaks no.
+
+### Tasks
+
+- [x] **7.1 Historical exploit module stubs** — limera1n, 24kpwn, evasi0n, checkra1n + env keys via `ExploitDelegate`.
+- [x] **7.2 Era-aware ChainRunner** — `detectJailbreakGeneration()` + `runEraChain()`; trimmed chain when iOS &lt; 15.
+- [x] **7.3 Post-exploit adapters** — **Partial** — era-aware rootful vs rootless probe messages in `PostExploitPrimitive`.
+- [x] **7.4 JB_HELPER + era env docs** — `JbHelperDelegate` + README / BACKPORT_MATRIX env table.
+- [x] **7.5 Recovery IMG3 / iBSS upload API** — **Partial** — `RecoveryDevice::sendFile`, `reset`/`reboot`, `RecoveryUploadPrimitive`, ipsw personalize.
+- [x] **7.6 Offline crash-log → slide helper** — `CrashSlideHelper`, `--analyze-crash` (host-only).
+- [x] **7.7 mobilebackup2 live probe** — **Partial** — `MobileBackup2ProbePrimitive`; connect + version exchange only; no restore/staging.
+- [ ] **7.8 Pairing / iTunes interference notes** — document host environment; optional kill-helper script (out of tree).
+- [ ] **7.9 Extended CPID / board logging** — align probe output with syringe CPID tables.
+- [x] **7.10 TSS + futurerestore process** — **Partial** — `TssDelegate`, `TssClient`, libtatsu SEP/BB tags, `--sep-ipsw`/`--bb-ipsw`; hardware validation in [validation/tss-recovery-smoke.md](../validation/tss-recovery-smoke.md).
+- [x] **7.11 Host codesign + sideload + trust cache** — **Partial** — `CodesignDelegate`, `IpaSignHelper`, `InstproxyService`, `SideloadPrimitive`, `TrustCacheDelegate`; CLI `--sign-macho` / `--sign-ipa` / `--install-ipa` / `--trustcache-add`; [book/deep/sideload-codesign.md](../book/deep/sideload-codesign.md).
+- [x] **7.12 In-memory ramdisk + Recovery chain** — **Done** — stock merge, HFS+ ipsw validation, chain execute + `go`; [book/deep/recovery-ramdisk.md](../book/deep/recovery-ramdisk.md), [validation/ramdisk-recovery-smoke.md](../validation/ramdisk-recovery-smoke.md).
+
+### Acceptance criteria
+
+- [BACKPORT_MATRIX.md](../BACKPORT_MATRIX.md) §5 rows move from **Planned** → **Done** as tasks land.
+- `--gen0` DFU uses Gen 5-shaped stages; Normal on iOS 14- skips Gen 6-only stages in reports.
+- No new in-tree exploit blobs; delegates remain env-driven.
+
+### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Users expect one binary to jailbreak all eras | WARN + matrix; era detection in chain report |
+| ChainRunner complexity | Separate `runEraChain()`; keep Gen6 path isolated |
+| IMG3 upload without blobs | API + docs only; user supplies signed images |
+
+---
+
 ## Dependency graph (detailed)
 
 ```mermaid
@@ -269,6 +382,8 @@ flowchart TB
     G0[Gen0Workflow stages]
     CK8[Checkm8 docs]
     BOOK[Book L5 updates]
+    PRIM[Gen6 primitive probes]
+    BP[Phase 7 backport chains]
 
     LEG --> P0
     P0 --> DM
@@ -281,6 +396,12 @@ flowchart TB
     MACH --> BOOK
     G0 --> BOOK
     DM --> CK8
+    MACH --> PRIM
+    G0 --> PRIM
+    PRIM --> BOOK
+    PRIM --> BP
+    G0 --> BP
+    BP --> BOOK
 ```
 
 ---
@@ -289,6 +410,8 @@ flowchart TB
 
 - Shipping untethered jailbreak for iOS 4.x / 5.x
 - Bundling limera1n, SHAtter, absinthe payloads, or ramdisks
+- In-tree **libkfd**, **PUAF** reproduction, **Dopamine** exploit modules, or **XPF** offset databases
+- On-device rootless bootstrap install (Procursus / ElleKit / Sileo packaging)
 - Cloning or unblocking **Chimera13**
 - Vendoring entire `legacy/Chronic-Dev/syringe/external/` trees into `src/`
 
@@ -308,4 +431,4 @@ flowchart TB
 ## Maintenance
 
 - Re-run legacy clone refresh per [`legacy/README.md`](../../legacy/README.md) quarterly; update REPO_INDEX counts.
-- When `src/` gains a capability, update COMPARISON_MATRIX and SUPPORT.md in the same PR.
+- When `src/` gains a capability, update COMPARISON_MATRIX, [BACKPORT_MATRIX.md](../BACKPORT_MATRIX.md), and SUPPORT.md in the same PR.

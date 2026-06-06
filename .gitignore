@@ -1,6 +1,7 @@
 # Local GitHub archive mirrors (clone trees not part of purplepois0n source)
 legacy/**
 !legacy/README.md
+!legacy/clone-modern-era.sh
 
 # purplepois0n build output (make release / make debug / make plugins)
 build/
@@ -11,3 +12,6 @@ build/
 # Submodule-built Go binaries (make external-ipsw / make external-ipswd)
 external/ipsw/ipsw
 external/ipsw/ipswd
+external/libtatsu/
+external/libtatsu-install/
+build/libtatsu/

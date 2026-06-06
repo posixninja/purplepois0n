@@ -105,14 +105,17 @@ sequenceDiagram
 | [`DeviceManager`](../../src/DeviceManager.cpp) | **Implemented** — DFU-first detect; ECID/CPID in `-l` |
 | [`IRecvUtil`](../../src/IRecvUtil.h) | **Implemented** — irecv retry, USB memory encoding |
 | [`DFUDevice`](../../src/DFUDevice.h) | **Implemented** — libirecovery 1.x client, R/W, commands |
-| [`RecoveryDevice`](../../src/RecoveryDevice.h) | **Implemented** — ECID-scoped irecv |
-| [`Gen0Workflow`](../../src/Gen0Workflow.cpp) + [`ChainRunner`](../../include/primitives/ChainRunner.h) | **Scaffold** — Detect→Connect→Probe→Report; no limera1n in-tree |
+| [`RecoveryDevice`](../../src/RecoveryDevice.h) | **Implemented** — ECID-scoped irecv; `sendFile`, `reset`, `reboot` |
+| [`Gen0Workflow`](../../src/Gen0Workflow.cpp) + [`ChainRunner`](../../include/primitives/ChainRunner.h) | **Scaffold** — Detect→Connect→Probe→Report; Recovery TSS/upload probes |
+| [`TssClient`](../../src/TssClient.cpp) / [`RecoveryUploadPrimitive`](../../src/primitives/RecoveryUploadPrimitive.cpp) | **Partial** — live SHSH, personalize, upload (probe/execute gated) |
+| [`CrashSlideHelper`](../../src/CrashSlideHelper.cpp) | **Implemented** — offline `--analyze-crash` (absinthe-era research) |
 | [`Checkm8`](../../src/Checkm8.cpp) | **Ext** — `-m` delegates to gaster/ipwndfu |
-| limera1n / SHAtter / untether | **NOT** | External or contributor modules |
+| [`gen0-24kpwn`](../../include/primitives/HistoricalExploitModules.h) | **Stub** — old-BR 3GS / iPod 2G untether delegate (`PURPLEPOIS0N_24KPWN`) |
+| limera1n / SHAtter / untether bytes | **NOT** | External or contributor modules |
 
 DFU `-j` runs probe chain only; `-m` runs checkm8 via external tools after probe. Recovery uses `getRecoveryEcid()` from enumeration — see [deep/dfu-recovery.md](deep/dfu-recovery.md), [deep/primitives-gen0.md](deep/primitives-gen0.md).
 
-**Deep dives:** [device-manager.md](deep/device-manager.md), [dfu-recovery.md](deep/dfu-recovery.md), [primitives-gen0.md](deep/primitives-gen0.md)
+**Deep dives:** [device-manager.md](deep/device-manager.md), [dfu-recovery.md](deep/dfu-recovery.md), [24kpwn.md](deep/24kpwn.md), [primitives-gen0.md](deep/primitives-gen0.md), [tss-futurerestore.md](deep/tss-futurerestore.md)
 
 **Legacy source study:** Local Chronic-Dev mirrors (`legacy/Chronic-Dev/syringe`, `gp2`, `gprc5`, `libirecovery`) are indexed in [legacy/LEARNINGS.md](../legacy/LEARNINGS.md). Host I/O and backup parsers are complete per [legacy/PHASE_STATUS.md](../legacy/PHASE_STATUS.md) and [legacy/INTEGRATION_PLAN.md](../legacy/INTEGRATION_PLAN.md).
 

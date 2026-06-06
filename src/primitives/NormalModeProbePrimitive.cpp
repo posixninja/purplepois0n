@@ -34,6 +34,16 @@ std::string NormalModeProbePrimitive::deliveryPath() const {
 PrimitiveResult NormalModeProbePrimitive::execute(ExecutionContext& context) {
     try {
         MobileDevice device(context.udid);
+        const std::string iosVersion = device.getValue("", "ProductVersion");
+        const std::string productType = device.getValue("", "ProductType");
+        if (!iosVersion.empty()) {
+            context.iosVersion = iosVersion;
+            Logger::info("  [Normal] iOS: " + iosVersion);
+        }
+        if (!productType.empty()) {
+            context.productType = productType;
+            Logger::info("  [Normal] ProductType: " + productType);
+        }
         const std::vector<std::string> apps = device.getInstalledApplications();
         std::ostringstream oss;
         oss << "installed apps: " << apps.size();

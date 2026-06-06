@@ -1,0 +1,45 @@
+# Live host communication (custom ramdisk only)
+
+Stock Apple RestoreRamDisk from an IPSW does **not** ship a general shell agent.
+It expects idevicerestore's restore/lockdown protocol.
+
+For **host-driven upload + command execution**, build a custom overlay and stage your
+own arm64 binaries from the Mac:
+
+```bash
+# Stage a cross-compiled iOS agent (or arm64 binary you supply)
+./build/bin/purplepois0n --build-ramdisk /tmp/test.dmg \
+  --ramdisk-overlay tests/fixtures/ramdisk_overlay \
+  --ramdisk-add-macho ./build/pp-agent:/sbin/pp-agent
+```
+
+## TCP line protocol (default)
+
+purplepois0n talks to a user-supplied listener on port **4444** by default (no sshd required):
+
+| Command | Response |
+|---------|----------|
+| `PING` | `PONG` |
+| `EXEC <shell>` | `OK <exit>\n` … output lines … `.` |
+| `PUT /path N` + N bytes | `OK` |
+| `GET /path` | `DATA N` + N bytes, or `ERR msg` |
+
+After boot, forward the device port:
+
+```bash
+iproxy -u UDID 4444:4444
+./build/bin/purplepois0n -d UDID --ramdisk-probe
+./build/bin/purplepois0n -d UDID --ramdisk-exec "uname -a"
+```
+
+Use `--ramdisk-transport ssh` only if your overlay ships sshd/dropbear.
+
+## Reference agent
+
+Cross-compile `tests/fixtures/pp-agent/pp-agent.c` for iOS arm64 and stage with:
+
+```bash
+--ramdisk-add-macho ./pp-agent:/sbin/pp-agent
+```
+
+Launch from init via overlay `sbin/start-pp-agent`. See [tests/fixtures/pp-agent/README.md](../pp-agent/README.md).

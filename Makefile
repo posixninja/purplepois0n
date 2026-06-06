@@ -34,7 +34,11 @@ OBJ_DIR = $(BUILD_DIR)/obj
 BIN_DIR = $(BUILD_DIR)/bin
 
 # Source files
-SOURCES = $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/primitives/*.cpp)
+SOURCES = $(wildcard $(SRC_DIR)/*.cpp) \
+          $(wildcard $(SRC_DIR)/pongo/*.cpp) \
+          $(wildcard $(SRC_DIR)/primitives/*.cpp) \
+          $(wildcard $(SRC_DIR)/primitives/historical/*.cpp) \
+          $(wildcard $(SRC_DIR)/primitives/pongo/*.cpp)
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 
 # Target executable
@@ -42,6 +46,44 @@ TARGET = $(BIN_DIR)/purplepois0n
 
 # Libraries (Homebrew libimobiledevice / libirecovery versioned sonames)
 LIBS = -limobiledevice-1.0 -lirecovery-1.0 -lplist-2.0 -lusbmuxd-2.0 -lsqlite3
+
+# Optional libtatsu (libimobiledevice TSS — idevicerestore tss.c successor)
+#   make release LIBTATSU=1     — force enable if pkg-config finds libtatsu-1.0
+#   auto-links when libtatsu-1.0 is installed and LIBTATSU is unset
+LIBTATSU_PKG := $(shell pkg-config --exists libtatsu-1.0 2>/dev/null && echo libtatsu-1.0)
+ifeq ($(LIBTATSU_PKG),)
+  LIBTATSU_PKG := $(shell pkg-config --exists libtatsu 2>/dev/null && echo libtatsu)
+endif
+ifeq ($(LIBTATSU),1)
+  ifneq ($(LIBTATSU_PKG),)
+    CXXFLAGS += -DPURPLEPOIS0N_HAVE_LIBTATSU $(shell pkg-config --cflags $(LIBTATSU_PKG))
+    LIBS += $(shell pkg-config --libs $(LIBTATSU_PKG))
+  else
+    $(warning LIBTATSU=1 but pkg-config libtatsu not found)
+  endif
+else ifneq ($(LIBTATSU),0)
+  ifneq ($(LIBTATSU_PKG),)
+    CXXFLAGS += -DPURPLEPOIS0N_HAVE_LIBTATSU $(shell pkg-config --cflags $(LIBTATSU_PKG))
+    LIBS += $(shell pkg-config --libs $(LIBTATSU_PKG))
+  endif
+endif
+
+# Optional libusb (PongoOS USB client — auto-detect like libtatsu)
+#   make release LIBUSB=1     — force enable if pkg-config finds libusb-1.0
+LIBUSB_PKG := $(shell pkg-config --exists libusb-1.0 2>/dev/null && echo libusb-1.0)
+ifeq ($(LIBUSB),1)
+  ifneq ($(LIBUSB_PKG),)
+    CXXFLAGS += -DPURPLEPOIS0N_HAVE_LIBUSB $(shell pkg-config --cflags $(LIBUSB_PKG))
+    LIBS += $(shell pkg-config --libs $(LIBUSB_PKG))
+  else
+    $(warning LIBUSB=1 but pkg-config libusb-1.0 not found)
+  endif
+else ifneq ($(LIBUSB),0)
+  ifneq ($(LIBUSB_PKG),)
+    CXXFLAGS += -DPURPLEPOIS0N_HAVE_LIBUSB $(shell pkg-config --cflags $(LIBUSB_PKG))
+    LIBS += $(shell pkg-config --libs $(LIBUSB_PKG))
+  endif
+endif
 
 # Include paths
 INCLUDES = -I$(INC_DIR) -I$(SRC_DIR) \
@@ -115,10 +157,14 @@ help:
 	@echo "  install  - Install to /usr/local/bin"
 	@echo "  uninstall- Remove from /usr/local/bin"
 	@echo "  plugins  - Build with PURPLEPOIS0N_ENABLE_EXPLOIT_PLUGINS"
+	@echo "  LIBTATSU=1 - Link libtatsu for in-tree live TSS (brew install libtatsu)"
+	@echo "  LIBUSB=1   - Link libusb for PongoOS USB (brew install libusb)"
 	@echo "  submodules   - git submodule update --init external/ipsw"
+	@echo "  external-libtatsu - build libtatsu to external/libtatsu-install"
 	@echo "  external-ipsw  - build ipsw CLI in external/ipsw (requires Go)"
 	@echo "  external-ipswd - build ipswd daemon in external/ipsw (requires Go)"
 	@echo "  test-fixtures - offline backup/Mach-O smoke (tests/run_fixtures.sh)"
+	@echo "  smoke-tss     - host TSS + chain report smoke (tests/smoke_tss.sh)"
 	@echo "  help     - Show this help message"
 	@echo ""
 	@echo "Architecture variables (macOS):"
@@ -141,8 +187,16 @@ external-ipswd: submodules
 	cd external/ipsw && CGO_ENABLED=1 go build -o ipswd ./cmd/ipswd
 	@test -x external/ipsw/ipswd && echo "Built: $$(pwd)/external/ipsw/ipswd" || (echo "ipswd build failed" && exit 1)
 
+external-libtatsu:
+	@chmod +x scripts/build-libtatsu.sh
+	@scripts/build-libtatsu.sh
+
 test-fixtures: $(TARGET)
 	@chmod +x tests/run_fixtures.sh 2>/dev/null || true
 	@tests/run_fixtures.sh
 
-.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd test-fixtures
+smoke-tss: $(TARGET)
+	@chmod +x tests/smoke_tss.sh tests/assert_chain_report.sh 2>/dev/null || true
+	@tests/smoke_tss.sh
+
+.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss

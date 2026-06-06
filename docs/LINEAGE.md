@@ -39,7 +39,7 @@ The jailbreak scene did not “end”—it **specialized**:
 - **Semi-untethered norm (iOS 9.3.3 onward for many tools):** Re-run an app after reboot to re-apply kernel patches.
 - **Mitigation stack:** KTRR, PAC, PPL/SPTM, sealed system volume, and hardened heaps made multi-bug chains standard.
 - **Hardware assist (checkm8, 2019):** Unpatchable bootrom bug on A5–A11 enables tethered bootstrap on many iOS versions—but not a full untether by itself.
-- **Rootless bootstraps (Dopamine era):** System partition is no longer the install target; package managers and tweak injection moved to `/var` and bind mounts (Procursus, ElleKit, roothide).
+- **Rootless bootstraps (Dopamine era):** System partition is no longer the install target; package managers and tweak injection moved to `/var` and bind mounts (Procursus, ElleKit, roothide). **Dopamine 2.x** relies on public **PUAF/kfd** kernel primitives—see [book/deep/puaf-kfd-era.md](book/deep/puaf-kfd-era.md).
 
 Tool names evolved through **evad3rs**, **Pangu**, **TaiG**, **Luca Todesco (yalu)**, **Coolstar (Electra/Chimera/Odyssey/Taurine)**, **Pwn20wnd (unc0ver)**, **checkra1n / palera1n**, and **opa334 (Dopamine)**—cataloged in [GENERATIONS.md](GENERATIONS.md).
 
@@ -61,7 +61,7 @@ Host tool (purplepois0n)
 | Normal / Recovery / DFU I/O | Implemented (mode classes) |
 | AFC file operations | Implemented (`AFCService`) |
 | Backup manifest parsing | Implemented (`MobileBackup`) |
-| dyld shared cache / Mach-O parsing | Implemented (`DyldCacheParser`, `MachOParser`) |
+| dyld shared cache / Mach-O parsing | Implemented (`DyldSharedCache`, `MachOBinary`; ipswd / ipsw) |
 | Exploit chains & bootstraps | **Not implemented** (see [SUPPORT.md](SUPPORT.md), `Gen0Workflow`) |
 
 purplepois0n is a **framework for research and extension**, not a released jailbreak for a specific iOS version. Contributors plug exploits into [`src/purplepois0n.cpp`](../src/purplepois0n.cpp); see [GENERATIONS.md](GENERATIONS.md) for which components align with each historical era.
@@ -85,7 +85,7 @@ flowchart LR
 - **PanguTaiG:** Pangu, TaiG, iOS 7–9 era  
 - **yaluEra:** yalu, h3lix, Meridian, iOS 10  
 - **unc0verElectra:** Electra, unc0ver, Chimera, Odyssey, Taurine, iOS 11–14  
-- **DopamineRootless:** Dopamine and rootless bootstraps, iOS 15+  
+- **DopamineRootless:** Dopamine, **PUAF/kfd**, rootless bootstraps, iOS 15+  
 - **purplepois0n:** This repository (framework, not a shipping jailbreak)
 
 ## Next steps

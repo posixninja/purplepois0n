@@ -24,7 +24,7 @@
 | **Gen 3** | yalu, yalu102 (OpenJailbreak) | Luca-era semi-untether reference |
 | **Gen 4** | Undecimus (OpenJailbreak) | Chimera/Odyssey/Taurine/Electra/unc0ver **not** in mirrors |
 | **Gen 5** | ipwndfu (OpenJailbreak) | checkm8 reference only; **not** checkra1n/palera1n repos |
-| **Gen 6** | — | Dopamine / rootless **not** mirrored |
+| **Gen 6** | Dopamine, kfd, XPF, TrollStore, … | **16 repos** in `legacy/modern-era/` — [MODERN_ERA_LEARNINGS.md](MODERN_ERA_LEARNINGS.md) |
 | **Libraries** | libmbdb, libmacho, libdyldcache, libimg3, libimobiledevice, libusbmuxd, libtss, libipsw, … | Cross-era parser/USB stack |
 
 ### Host stack coverage (purplepois0n Gen 0)
@@ -54,7 +54,7 @@ P0 set from docs is present: syringe, libirecovery, gp2, gprc5, absinthe-2.0, ap
 | **3** | extra_recipe, Meridian, Saïgon, h3lix, … | Mostly **book only** (yalu/yalu102 in OpenJailbreak) |
 | **4** | Electra, unc0ver, Chimera, Odyssey, Taurine, Fugu14 | **Book only** — Undecimus only; **Chimera13 blocked** |
 | **5** | checkra1n, palera1n | **Book only** — ipwndfu only (axi0mX lineage via OpenJailbreak) |
-| **6** | Dopamine, Dopamine 2, XinaA15 | **Book only** — opa334/Dopamine not mirrored |
+| **6** | Dopamine, Dopamine 2, XinaA15 | **Partial** — `legacy/modern-era/` (16 selective clones); not full opa334 org |
 
 ### Public repos we *could* add (selective; not bulk-mirrored today)
 
@@ -63,7 +63,7 @@ P0 set from docs is present: syringe, libirecovery, gp2, gprc5, absinthe-2.0, ap
 | **evad3rs** | evasi0n, evasi0n7 (if still public) | Gen 1 chains |
 | **PanguTeam** | Pangu releases / tooling | Gen 2 |
 | **checkra1n** | checkra1n, palera1n | Gen 5 host DFU workflows |
-| **opa334** | Dopamine | Gen 6 rootless |
+| **opa334** | Dopamine, kfd, XPF, TrollStore, … | Gen 6 — **`legacy/modern-era/`** via [clone-modern-era.sh](../../legacy/clone-modern-era.sh) |
 | **Luca Todesco** | yalu forks beyond OpenJailbreak mirrors | Gen 3 |
 | **Pwn20wnd** | unc0ver | Gen 4 |
 | **Coolstar** | Electra, Chimera (if public; OpenJailbreak Chimera13 blocked) | Gen 4 |
@@ -80,7 +80,7 @@ Exploit-only trees in the OpenJailbreak mirror are for **study policy** in docs 
 | Goal | Verdict |
 |------|---------|
 | **Gen 0 analysis** (DFU, absinthe backup path, mbdb, host I/O) | **Sufficient** — no mandatory extra clones |
-| **Full GENERATIONS.md / book parity with source** | **Insufficient** — add **targeted** public clones per chapter, not another bulk org dump |
+| **Full GENERATIONS.md / book parity with source** | **Partial** — Gen 6 P0 set in `modern-era/`; gens 1–5 still book-only except ipwndfu |
 | **Gen 4 Chimera** | **Cannot** clone OpenJailbreak/Chimera13 via public HTTPS (451) |
 
 **Bottom line:** Download policy completed for **three GitHub orgs** (111 repos). That is **not** every historical jailbreak — by design. For purplepois0n’s Gen‑0 + host-framework focus, the current snapshot is the right scope unless you widen era coverage.

@@ -11,8 +11,9 @@ Local **read-only** `git clone` trees of jailbreak-era GitHub organizations used
 | `Chronic-Dev/` | https://github.com/Chronic-Dev |
 | `OpenJailbreak/` | https://github.com/OpenJailbreak |
 | `posixninja/` | https://github.com/posixninja |
+| `modern-era/` | Selective Gen 6 clones — see [clone-modern-era.sh](clone-modern-era.sh) |
 
-Policy and integration notes: [docs/ARCHIVES.md](../docs/ARCHIVES.md). Phase rollup: [docs/legacy/PHASE_STATUS.md](../docs/legacy/PHASE_STATUS.md).
+Policy and integration notes: [docs/ARCHIVES.md](../docs/ARCHIVES.md). Phase rollup: [docs/legacy/PHASE_STATUS.md](../docs/legacy/PHASE_STATUS.md). **Gen 6 study guide:** [docs/legacy/MODERN_ERA_LEARNINGS.md](../docs/legacy/MODERN_ERA_LEARNINGS.md).
 
 ## Optional duplicate
 
@@ -66,6 +67,16 @@ done < <(curl -sS -H "Accept: application/vnd.github+json" \
 ```
 
 For `posixninja`, use `users/posixninja/repos?per_page=100&type=owner&page=1` instead of `orgs/…`.
+
+### Gen 6 modern era (selective)
+
+Not a bulk org mirror — 16 curated repos for Dopamine / PUAF / rootless study:
+
+```bash
+./legacy/clone-modern-era.sh
+```
+
+See [docs/legacy/MODERN_ERA_LEARNINGS.md](../docs/legacy/MODERN_ERA_LEARNINGS.md) for architecture synthesis and reading order.
 
 ### Update existing clones
 

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Launch reference TCP agent on port 4444 (custom ramdisk init glue).
+if [ -x /sbin/pp-agent ]; then
+  exec /sbin/pp-agent
+fi
+echo "pp-agent: /sbin/pp-agent missing — build with --ramdisk-add-macho" >&2
+exit 1

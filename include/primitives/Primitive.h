@@ -31,6 +31,9 @@ public:
     virtual std::vector<DeviceState> requiredDeviceStates() const = 0;
     virtual bool canRun(const ExecutionContext& context) const = 0;
 
+    /** Gen6 ordered chain stage; ChainStage::Probe if not part of Dopamine-shaped chain. */
+    virtual ChainStage gen6Stage() const { return ChainStage::Probe; }
+
     virtual PrimitiveResult execute(ExecutionContext& context) = 0;
 };
 

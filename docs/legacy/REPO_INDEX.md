@@ -2,9 +2,34 @@
 
 Compact index of local mirrors under [`legacy/`](../../legacy/). **Study priority:** P0 = read first for purplepois0n Gen-0 work; P1 = high value; P2 = cross-generation reference; P3 = catalog only.
 
-**Snapshot:** 2026-06-01 · **Total:** 111 repos (Chimera13 **not cloned** — HTTP 451)
+**Snapshot:** 2026-06-03 · **Bulk mirrors:** 111 repos (Chimera13 **not cloned** — HTTP 451) · **Gen 6 selective:** 16 repos in `legacy/modern-era/`
 
-**Deep dives:** P0/P1 rows expanded below. P2/P3 summarized in tables only.
+**Deep dives:** P0/P1 rows below · **Gen 6 synthesis:** [MODERN_ERA_LEARNINGS.md](MODERN_ERA_LEARNINGS.md)
+
+---
+
+## modern-era/ — Generation 6 (selective clones)
+
+Refresh: [`legacy/clone-modern-era.sh`](../../legacy/clone-modern-era.sh)
+
+| Repo | Lang | ~Purpose | Maps to purplepois0n | Priority |
+|------|------|----------|----------------------|----------|
+| **Dopamine** | ObjC/Swift/C | Rootless JB app + BaseBin + exploit frameworks | Phase 6 host/device boundary; **do not port** exploits | **P0** |
+| **kfd-opa334** | C | libkfd fork for Dopamine | Vocabulary for `KernelCapabilityProbePrimitive` | **P0** |
+| **kfd-felix-pb** | C | Original kfd + PUAF write-ups | Book / puaf-kfd-era citations | **P0** |
+| **XPF** | C | Kernel patchfinder (Choma) | Parallel to offline kernelcache analysis | **P0** |
+| **weightBufs** | C | ANE kernel exploit | Picker module study | **P0** |
+| **multicast_bytecopy** | C | Multicast CoW kernel exploit | Picker module study | **P0** |
+| **darksword-kexploit** | ObjC | Kernel port (ITW class) | 2.5b arm64 17–18 range context | **P0** |
+| **TrollStore** | ObjC | Permasigned IPA install | Phase 6.7 delegate / user docs | **P1** |
+| **libroot** | C | Rootless path prefixes | AFC / path docs post-JB | **P1** |
+| **libkrw** | C | Kernel R/W API + plugins | Dopamine `libkrw-provider` pattern | **P1** |
+| **libgrabkernel2** | C | On-device kernelcache fetch | Contrasts with host IPSW path | **P1** |
+| **Procursus** | mixed | Rootless bootstrap | Out of repo scope | **P1** |
+| **ellekit** | Swift/C | Tweak injection | Bootstrap stack context | **P1** |
+| **Fugu15** | mixed | Dopamine 1.x lineage | arm64e / badRecovery era | **P2** |
+| **multicast_bytecopy_A9** | C | A9 fork | Device-specific picker | **P2** |
+| **DarkSword-Analysis** | docs | ITW chain notes | Threat-intel cross-check | **P2** |
 
 ---
 

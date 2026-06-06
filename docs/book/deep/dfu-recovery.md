@@ -22,7 +22,7 @@ flowchart LR
 
 | Class | Boot stage | Typical historical use |
 |-------|------------|------------------------|
-| `DFUDevice` | Bootrom / DFU | limera1n, SHAtter, checkm8, IMG3 upload |
+| `DFUDevice` | Bootrom / DFU | limera1n, 24kpwn (old BR), checkm8, IMG3 upload |
 | `RecoveryDevice` | iBoot recovery | iBoot commands, ramdisk load, restore helpers |
 
 `DeviceManager` uses `irecv_get_mode()` via `IRecvUtil` to avoid treating recovery as DFU.
@@ -59,13 +59,31 @@ Memory addresses use standard **32-bit USB encoding**: low 16 bits → `wValue`,
 
 **checkm8:** `Checkm8` classifies CPID (A5–A11), rejects A12+, and invokes **gaster** or **ipwndfu** when `-m` / `--checkm8` is set. USB exploit sequence remains external.
 
-**Not in-tree:** IMG3/IM4P parsing, Pongo/KPF load, untether persistence.
+**Not in-tree:** Pongo/KPF load, untether persistence.
 
-**Progress (Phase 1.4):** Optional `IRECV_PROGRESS` via `IRecvProgressSubscription` + `DFUDevice(IRecvProgressCallback)`; use `DFUDevice::sendFile()` for long uploads. No default exploit payloads subscribe progress.
+**Progress (Phase 1.4):** Optional `IRECV_PROGRESS` via `IRecvProgressSubscription` + `DFUDevice(IRecvProgressCallback)`; use `DFUDevice::sendFile()` for long uploads.
+
+**Progress (Phase 7.5):** `RecoveryDevice::sendFile()` + `reset()` / `reboot()` + `RecoveryUploadPrimitive` — signed iBSS/iBEC upload after TSS personalize ([tss-futurerestore.md](tss-futurerestore.md)).
+
+**Progress (Phase 7.12):** In-memory HFS+ ramdisk builder + IPSW rdsk repack + multi-stage Recovery chain — **Partial** ([recovery-ramdisk.md](recovery-ramdisk.md)).
+
+**Recovery boot:** `RecoveryBootChainPrimitive` sends iBoot `go` after rdsk upload on `--recovery-execute` unless `PURPLEPOIS0N_RECOVERY_BOOT=0`. This is **Recovery mode only** — not PongoOS `bootx`.
+
+**PongoOS (DFU path):** USB VID `0x05ac` / PID `0x4141` after checkra1n loads Pongo. purplepois0n exposes `pongo-probe` / `pongo-boot-chain` primitives (libusb) and delegates checkra1n `-cp` spawn; KPF bytes remain user-supplied. See [recovery-ramdisk.md — Pongo vs Recovery](recovery-ramdisk.md#pongo-vs-recovery).
+
+**Follow-on:** full idevicerestore FSM not in-tree.
 
 ## RecoveryDevice lifecycle
 
-Requires **ECID** at construction. Opens via `irecv_util::openWithEcidRetry(&client, ecid)`. API parallels `DFUDevice`.
+Requires **ECID** at construction. Opens via `irecv_util::openWithEcidRetry(&client, ecid)`. API parallels `DFUDevice`, including:
+
+| Method | Purpose |
+|--------|---------|
+| `sendFile()` | Upload signed IMG3/IMG4 via `irecv_send_file` |
+| `reset()` | `irecv_reset` — reset USB state after upload |
+| `reboot()` | `irecv_reboot` — reboot device from Recovery |
+| `getEnv()` | ApNonce and iBoot env (NONCE, build-version) |
+| `getCpid()` / `getBoardId()` | BuildIdentity match for libtatsu |
 
 **Gen0 integration:** `Gen0Workflow` calls `DeviceManager::getRecoveryEcid()` then `getRecoveryDevice(ecid)` — Recovery enumeration populates ECID for `-l` and `--gen0`.
 
