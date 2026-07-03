@@ -58,8 +58,23 @@ struct CliParsedOptions {
     std::string pongoRamdiskPath;
     std::string pongoXargsLine;
     bool postJbPipelineFlag = false;
+    bool postJbStoreFlag = false;
+    std::string postJbStoreInstallPkg;
+    std::string storeRoot;
+    bool medicineProbeFlag = false;
+    bool medicineApplyFlag = false;
+    std::string medicineCures;
+    std::string medicinePlatform;
+    std::string medicineCapability;
+    std::string medicineAppPath;
     bool futurerestoreRestoreFlag = false;
     bool understandRestoreFlag = false;
+    bool jailbreakExecuteFlag = false;
+    bool bypassIntegrityFlag = false;
+    bool understandJailbreakFlag = false;
+    std::string kernelcachePath;
+    std::string patchProfilePath;
+    std::string patchOutPath;
 };
 
 Gen0Options gen0OptionsFromCli(const CliParsedOptions& cli, Gen0CliIntent intent);

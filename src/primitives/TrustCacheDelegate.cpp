@@ -6,6 +6,7 @@
 #include "primitives/Gen6Types.h"
 #include "RamdiskClient.h"
 #include "RamdiskTypes.h"
+#include "EnvUtil.h"
 #include "ToolRunner.h"
 #include "Logger.h"
 
@@ -39,6 +40,14 @@ bool ramdiskTransportConfigured(const ExecutionContext& context) {
         return true;
     }
     return false;
+}
+
+bool normalSshConfigured(const ExecutionContext& context) {
+    if (PP::envFlagEnabled("PURPLEPOIS0N_NORMAL_SSH")) {
+        return !context.udid.empty() || ramdiskTransportConfigured(context);
+    }
+    return ramdiskTransportConfigured(context) &&
+           context.ramdiskConnect.transport == RamdiskTransport::Ssh;
 }
 
 std::string basenamePath(const std::string& path) {
@@ -138,6 +147,9 @@ PrimitiveResult TrustCacheDelegate::addToTrustCache(const ExecutionContext& cont
     }
 
     if (ramdiskTransportConfigured(context)) {
+        if (normalSshConfigured(context)) {
+            Logger::info("  [TrustCache] Normal/SSH transport — upload + jbctl on device");
+        }
         return addViaRamdisk(context, binary, allowMutation);
     }
 

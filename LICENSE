@@ -1,0 +1,52 @@
+Copyright (c) 2026 Joshua Hill
+
+RESEARCH USE LICENSE
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to use
+the Software for research, educational, authorized security testing, and
+defensive security purposes, subject to the following conditions:
+
+1. AUTHORIZED USES
+   The Software may be used for:
+   - Security research and educational analysis
+   - Authorized penetration testing (with written consent from device owner)
+   - Defensive security testing and vulnerability assessment
+   - Capture The Flag (CTF) competitions
+   - Internal security audits by authorized personnel
+
+2. RESTRICTIONS
+   The Software MAY NOT be used for:
+   - Unauthorized access to or modification of any device
+   - Any malicious purpose or attack
+   - Mass targeting or supply chain compromise
+   - Bypassing security protections without authorization
+   - Commercial distribution or sale
+   - Circumventing licensing controls or DRM mechanisms
+   - Any illegal activity under applicable law
+
+3. ATTRIBUTION
+   Any use of the Software must include attribution to the original authors.
+
+4. NO WARRANTY
+   The Software is provided "AS IS" without warranty of any kind, express or
+   implied, including but not limited to the warranties of merchantability,
+   fitness for a particular purpose, and non-infringement.
+
+5. LIABILITY DISCLAIMER
+   In no event shall the authors be liable for any claim, damages, or other
+   liability arising from the use or inability to use the Software.
+
+6. TERMINATION
+   This license is automatically terminated if the Software is used for any
+   unauthorized, illegal, or malicious purpose.
+
+7. GOVERNING LAW
+   This license is governed by the laws of the jurisdiction in which it is used.
+
+---
+
+By using this Software, you acknowledge and agree to these terms.
+Misuse of this Software may result in legal consequences.
+
+For questions regarding authorized use, contact the authors.

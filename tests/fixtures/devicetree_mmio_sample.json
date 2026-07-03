@@ -1,0 +1,59 @@
+{
+  "device-tree": {
+    "model": "iPhone14,2",
+    "compatible": ["Apple,iPhone14,2", "D63AP"],
+    "AAPL,phandle": 1,
+    "children": [
+      {
+        "arm-io": {
+          "compatible": "arm-io,t8101",
+          "soc-generation": "t8101",
+          "product-name": "iPhone 13 Pro",
+          "product-soc-name": "A15 Bionic",
+          "reg-private": 5368709120,
+          "regions": [
+            { "Start": 5368709120, "End": 5494538240 }
+          ]
+        }
+      },
+      {
+        "gpu": {
+          "compatible": "apple,agx-g13g",
+          "pmap-io-ranges": [
+            {
+              "start": 8891924480,
+              "size": 134217728,
+              "name": "AGX",
+              "flags": 1
+            }
+          ],
+          "ps-regs": [
+            { "reg": 12, "off": 4096, "unk": 0 },
+            { "reg": 12, "off": 8192, "unk": 1 }
+          ],
+          "devices": [
+            {
+              "name": "gpu-die",
+              "index": 0,
+              "map": 12,
+              "flag": 1,
+              "id1": 4,
+              "id2": 900,
+              "alias": 0
+            }
+          ],
+          "interrupts": [ 240, 241 ]
+        }
+      },
+      {
+        "ane": {
+          "compatible": "apple,ane",
+          "reg": {
+            "addr": 9126805504,
+            "size": 67108864
+          }
+        }
+      }
+    ]
+  }
+}

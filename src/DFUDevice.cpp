@@ -84,6 +84,19 @@ void DFUDevice::sendCommand(const std::string& command) const {
     }
 }
 
+irecv_util::IRecvCommandResult DFUDevice::sendCommandWithResponse(const std::string& command,
+                                                                  const uint64_t recvLength) const {
+    return irecv_util::sendCommandWithResponse(mClient, command, recvLength);
+}
+
+uint32_t DFUDevice::getCommandReturn() const {
+    uint32_t value = 0;
+    if (!irecv_util::getCommandReturn(mClient, &value)) {
+        throw std::runtime_error("Failed to read command return");
+    }
+    return value;
+}
+
 void DFUDevice::sendFile(const std::string& path, const unsigned int options) const {
     if (irecv_send_file(mClient, path.c_str(), options) != IRECV_E_SUCCESS) {
         throw std::runtime_error("Failed to send file: " + path);

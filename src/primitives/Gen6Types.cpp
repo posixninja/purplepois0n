@@ -159,6 +159,8 @@ ChainStage gen6StageForCategory(PrimitiveCategory category) {
             return ChainStage::PacBypass;
         case PrimitiveCategory::PplBypass:
             return ChainStage::PplBypass;
+        case PrimitiveCategory::PageMonitor:
+            return ChainStage::PageMonitor;
         case PrimitiveCategory::PhysRw:
             return ChainStage::PhysRw;
         case PrimitiveCategory::Privilege:

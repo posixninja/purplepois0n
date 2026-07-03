@@ -42,6 +42,10 @@ public:
     void writeMemory(uint64_t address, const std::vector<uint8_t>& data) const;
 
     void sendCommand(const std::string& command) const;
+    /** send_command → getret → optional recv_buffer. */
+    irecv_util::IRecvCommandResult sendCommandWithResponse(const std::string& command,
+                                                           uint64_t recvLength = 0) const;
+    uint32_t getCommandReturn() const;
     void sendFile(const std::string& path, unsigned int options = IRECV_SEND_OPT_NONE) const;
 
     std::vector<uint8_t> receiveResponse(uint64_t length) const;

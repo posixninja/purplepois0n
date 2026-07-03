@@ -10,9 +10,18 @@
 #include <libirecovery.h>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace PP {
 namespace irecv_util {
+
+/** Result of irecv_send_command + irecv_getret (+ optional recv_buffer). */
+struct IRecvCommandResult {
+    bool success = false;
+    uint32_t returnCode = 0;
+    std::vector<uint8_t> buffer;
+    std::string error;
+};
 
 constexpr int kOpenRetryCount = 10;
 constexpr int kOpenRetryDelaySeconds = 1;
@@ -49,6 +58,14 @@ int usbMemoryRead(irecv_client_t client, uint64_t address, unsigned char* data, 
 
 /** Write device memory via irecv control transfer (32-bit address encoding). */
 int usbMemoryWrite(irecv_client_t client, uint64_t address, const unsigned char* data, uint16_t length);
+
+/** Read irecv_getret after a command; returns false on transport failure. */
+bool getCommandReturn(irecv_client_t client, uint32_t* returnCode);
+
+/** send_command → getret → optional recv_buffer (Chronic-Dev syringe pattern). */
+IRecvCommandResult sendCommandWithResponse(irecv_client_t client,
+                                           const std::string& command,
+                                           uint64_t recvLength = 0);
 
 /** Probe ECID by opening the first Recovery device; returns 0 if unavailable. */
 uint64_t probeRecoveryEcid();

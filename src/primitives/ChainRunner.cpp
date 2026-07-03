@@ -13,6 +13,7 @@
 #include "primitives/ITransport.h"
 #include "Gen0Workflow.h"
 #include "RamdiskWorkDir.h"
+#include "Checkm8.h"
 #include "Logger.h"
 
 #include <algorithm>
@@ -33,6 +34,7 @@ const ChainStage kGen6Stages[] = {
     ChainStage::KernelExploit,
     ChainStage::PacBypass,
     ChainStage::PplBypass,
+    ChainStage::PageMonitor,
     ChainStage::PhysRw,
     ChainStage::Privilege,
     ChainStage::TrustCache,
@@ -383,7 +385,8 @@ bool ChainRunner::runProbeChain(ExecutionContext& context) {
     logStage(ChainStage::Detect, std::string("device mode: ") + deviceStateLabel(context.deviceState));
     if (context.cpid != 0) {
         std::ostringstream oss;
-        oss << "CPID 0x" << std::hex << context.cpid << std::dec;
+        oss << "CPID 0x" << std::hex << context.cpid << std::dec << " ("
+            << Checkm8::cpidToSocName(context.cpid) << ")";
         logStage(ChainStage::Detect, oss.str());
     }
     if (!context.iosVersion.empty()) {

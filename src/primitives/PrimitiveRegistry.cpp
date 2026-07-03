@@ -22,6 +22,11 @@
 #include "primitives/HistoricalExploitModules.h"
 #include "primitives/Gen6ExploitModules.h"
 #include "primitives/Gen6PostExploitModules.h"
+#include "primitives/RootlessBootstrapPrimitive.h"
+#include "primitives/DpkgStorePrimitive.h"
+#include "primitives/DeviceTreeMmioPrimitive.h"
+#include "primitives/HostKernelPatchPrimitive.h"
+#include "primitives/MedicinePrimitive.h"
 
 namespace PP {
 namespace primitives {
@@ -46,13 +51,16 @@ void PrimitiveRegistry::registerBootromPrimitives() {
 
 void PrimitiveRegistry::registerGen6ChainPrimitives() {
     registerBuiltin(std::unique_ptr<Primitive>(new KernelcacheAcquisitionModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new HostKernelPatchPrimitive()));
     registerBuiltin(std::unique_ptr<Primitive>(new XpfPatchfindingModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new IntegrityBypassModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new KfdExploitModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new DarkSwordExploitModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new WeightBufsExploitModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new MulticastBytecopyExploitModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new BadRecoveryPacModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new DmaFailPplModule()));
+    registerBuiltin(std::unique_ptr<Primitive>(new PageMonitorControlModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new PhysRwBuildModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new PrivilegeElevationModule()));
     registerBuiltin(std::unique_ptr<Primitive>(new TrustCacheModule()));
@@ -85,6 +93,10 @@ void PrimitiveRegistry::registerHostProbePrimitives() {
     registerBuiltin(std::unique_ptr<Primitive>(new MobileBackup2ProbePrimitive()));
     registerBuiltin(std::unique_ptr<Primitive>(new CodesignSigningProbePrimitive()));
     registerBuiltin(std::unique_ptr<Primitive>(new SideloadPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new DeviceTreeMmioPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new RootlessBootstrapPrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new DpkgStorePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new MedicinePrimitive()));
 }
 
 void PrimitiveRegistry::registerBuiltins() {

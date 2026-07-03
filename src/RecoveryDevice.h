@@ -93,6 +93,20 @@ public:
         }
     }
 
+    /** send_command → getret → optional recv_buffer. */
+    irecv_util::IRecvCommandResult sendCommandWithResponse(const std::string& command,
+                                                           uint64_t recvLength = 0) const {
+        return irecv_util::sendCommandWithResponse(mClient, command, recvLength);
+    }
+
+    uint32_t getCommandReturn() const {
+        uint32_t value = 0;
+        if (!irecv_util::getCommandReturn(mClient, &value)) {
+            throw std::runtime_error("Failed to read command return");
+        }
+        return value;
+    }
+
     /** Upload signed IMG3/IMG4 component (iBSS, iBEC, etc.) via libirecovery. */
     void sendFile(const std::string& path, unsigned int options = IRECV_SEND_OPT_NONE) const;
 

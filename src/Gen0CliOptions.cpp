@@ -48,7 +48,25 @@ Gen0Options gen0OptionsFromCli(const CliParsedOptions& cli, Gen0CliIntent intent
         cli.pongoRamdiskPath.empty() ? cli.buildRamdiskPath : cli.pongoRamdiskPath;
     options.pongo.xargsLine = cli.pongoXargsLine;
     options.postJbPipeline = cli.postJbPipelineFlag;
+    options.postJbStoreSync = cli.postJbStoreFlag;
+    options.postJbStoreInstallPkg = cli.postJbStoreInstallPkg;
+    options.storeRoot = cli.storeRoot;
+    options.medicineRun = cli.medicineProbeFlag || cli.medicineApplyFlag;
+    options.medicineApply = cli.medicineApplyFlag;
+    options.medicineCures = cli.medicineCures;
+    options.medicinePlatform = cli.medicinePlatform;
+    options.medicineCapability = cli.medicineCapability;
+    options.medicineAppPath = cli.medicineAppPath;
     options.futurerestoreRestore = cli.futurerestoreRestoreFlag;
+    options.jailbreakExecute = cli.jailbreakExecuteFlag;
+    options.bypassIntegrity = cli.bypassIntegrityFlag || cli.jailbreakExecuteFlag;
+    if (cli.jailbreakExecuteFlag && !cli.pongoProbeFlag && !cli.pongoBootFlag) {
+        options.pongo.bootRun = true;
+        options.pongo.execute = true;
+    }
+    options.kernelcachePath = cli.kernelcachePath;
+    options.patchProfilePath = cli.patchProfilePath;
+    options.patchOutPath = cli.patchOutPath;
 
     switch (intent) {
         case Gen0CliIntent::RecoveryChain:

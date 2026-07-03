@@ -33,13 +33,17 @@ clone_repo "https://github.com/0x36/weightBufs.git" "weightBufs"
 clone_repo "https://github.com/potmdehex/multicast_bytecopy.git" "multicast_bytecopy"
 clone_repo "https://github.com/opa334/darksword-kexploit.git" "darksword-kexploit"
 
-# P1 — bootstrap, install path, kernelcache fetch
+# P1 — bootstrap, install path, kernelcache fetch, PongoOS KPF dev
+clone_repo "https://github.com/checkra1n/PongoOS.git" "PongoOS"
 clone_repo "https://github.com/opa334/TrollStore.git" "TrollStore"
 clone_repo "https://github.com/opa334/libroot.git" "libroot"
 clone_repo "https://github.com/Siguza/libkrw.git" "libkrw"
 clone_repo "https://github.com/alfiecg24/libgrabkernel2.git" "libgrabkernel2"
 clone_repo "https://github.com/ProcursusTeam/Procursus.git" "Procursus"
 clone_repo "https://github.com/tealbathingsuit/ellekit.git" "ellekit"
+
+# checkm8 era — PongoOS + KPF patchfinder (offline kpf-test)
+clone_repo "https://github.com/checkra1n/PongoOS.git" "PongoOS"
 
 # P2 — lineage + community forks / analysis
 clone_repo "https://github.com/opa334/Fugu15.git" "Fugu15"

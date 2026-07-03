@@ -101,6 +101,19 @@ PrimitiveResult uploadComponent(ExecutionContext& context, const std::string& la
             return PrimitiveResult::Failed;
         }
     }
+
+    if (PP::truthyEnv("PURPLEPOIS0N_RECOVERY_PROMPT_CHECK", true)) {
+        const std::string prompt = context.transport->getDeviceEnv("Prompt");
+        if (!prompt.empty()) {
+            Logger::info("  [Recovery] iBoot prompt after " + label + ": " + prompt);
+            if (prompt.find("Error") != std::string::npos ||
+                prompt.find("failed") != std::string::npos) {
+                Logger::error("  [Recovery] upload may have failed — iBoot reported error prompt");
+                return PrimitiveResult::Failed;
+            }
+        }
+    }
+
     return PrimitiveResult::Success;
 }
 

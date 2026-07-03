@@ -3,6 +3,8 @@
  */
 
 #include "primitives/JbHelperDelegate.h"
+#include "primitives/RootlessDelegate.h"
+#include "primitives/RootlessLayout.h"
 #include "ToolRunner.h"
 #include "Logger.h"
 
@@ -66,6 +68,12 @@ PrimitiveResult JbHelperDelegate::run(const ExecutionContext& context, bool allo
 
     std::vector<std::string> argv;
     argv.push_back(helperPath);
+
+    if (RootlessDelegate::preferRootless(context)) {
+        argv.push_back("--rootless");
+        argv.push_back("--jbroot");
+        argv.push_back(RootlessLayout::resolveJbroot());
+    }
 
     const char* extraArgs = std::getenv("PURPLEPOIS0N_JB_HELPER_ARGS");
     if (extraArgs != nullptr && extraArgs[0] != '\0') {

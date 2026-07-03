@@ -9,14 +9,46 @@
 #include "Logger.h"
 
 #include <fstream>
+#include <sys/stat.h>
 
 namespace PP {
+
+namespace {
+
+bool fileExists(const std::string& path) {
+    struct stat st;
+    return !path.empty() && stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+}
+
+std::string defaultBuiltKpfPath() {
+    const std::string fromEnv = envOrEmpty("PURPLEPOIS0N_KPF_BUILD");
+    if (!fromEnv.empty()) {
+        return fromEnv;
+    }
+    const char* roots[] = {
+        "legacy/kpf-purple/build/purplepois0n-kpf-pongo",
+        "legacy/modern-era/PongoOS/build/purplepois0n-kpf-pongo",
+    };
+    for (size_t i = 0; i < sizeof(roots) / sizeof(roots[0]); ++i) {
+        const std::string candidate = std::string(roots[i]);
+        if (fileExists(candidate)) {
+            return candidate;
+        }
+    }
+    return std::string();
+}
+
+} /* anonymous */
 
 std::string resolvePongoKpfPath(const primitives::ExecutionContext& context) {
     if (!context.pongoKpfPath.empty()) {
         return context.pongoKpfPath;
     }
-    return envOrEmpty("PURPLEPOIS0N_KPF");
+    const std::string fromEnv = envOrEmpty("PURPLEPOIS0N_KPF");
+    if (!fromEnv.empty()) {
+        return fromEnv;
+    }
+    return defaultBuiltKpfPath();
 }
 
 std::string resolvePongoXargs(const primitives::ExecutionContext& context) {

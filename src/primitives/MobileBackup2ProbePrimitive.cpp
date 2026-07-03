@@ -61,7 +61,23 @@ PrimitiveResult MobileBackup2ProbePrimitive::execute(ExecutionContext& context) 
         Logger::warn("  [MB2]    version exchange failed (" + std::to_string(versionErr) + ")");
     }
 
-    Logger::info("  [MB2]    restore/staging — NOT in-tree (absinthe-era boundary)");
+    static const char* kStudyDomains[] = {
+        "HomeDomain",
+        "SysSharedContainerDomain",
+        "WirelessDomain",
+        "MediaDomain",
+        "HealthDomain",
+        "ManagedPreferencesDomain",
+        "RootDomain",
+        "SystemPreferencesDomain",
+        "KeychainDomain",
+        "InstallDomain",
+    };
+    Logger::info("  [MB2]    absinthe-era study domains (parse-only boundary):");
+    for (size_t d = 0; d < sizeof(kStudyDomains) / sizeof(kStudyDomains[0]); ++d) {
+        Logger::info(std::string("  [MB2]      - ") + kStudyDomains[d]);
+    }
+    Logger::info("  [MB2]    live restore/staging — NOT in-tree (see pairing-itunes-interference.md)");
 
     mobilebackup2_client_free(client);
     idevice_free(device);

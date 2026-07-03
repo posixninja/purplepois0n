@@ -76,7 +76,25 @@ struct Gen0Options {
     Gen0PongoOptions pongo;
     /** Run sign-ipa → install-ipa → trustcache-add when mutation enabled. */
     bool postJbPipeline = false;
+    /** Post-install medicine cures after jailbreak (afc2, capable, loader hints). */
+    bool medicineRun = false;
+    bool medicineApply = false;
+    std::string medicineCures;
+    std::string medicinePlatform;
+    std::string medicineCapability;
+    std::string medicineAppPath;
     bool futurerestoreRestore = false;
+    /** Run era execute chain (requires make plugins + --i-understand-jailbreak). */
+    bool jailbreakExecute = false;
+    /** Auto-run PAC + data-integrity bypass (badRecovery delegate) after kernel exploit. */
+    bool bypassIntegrity = false;
+    std::string kernelcachePath;
+    std::string patchProfilePath;
+    std::string patchOutPath;
+    /** Sync purplepois0n-store to device during post-jb pipeline. */
+    bool postJbStoreSync = false;
+    std::string storeRoot;
+    std::string postJbStoreInstallPkg;
 };
 
 bool runGen0Jailbreak(DeviceManager& manager,
@@ -131,8 +149,20 @@ bool runPostJbPipeline(DeviceManager& manager,
                        const std::string& targetUDID,
                        const Gen0Options& options);
 
+/** Probe or apply Chronic-Dev medicine-style post-install cures. */
+bool runMedicinePipeline(DeviceManager& manager,
+                         const std::string& targetUDID,
+                         const Gen0Options& options,
+                         bool apply);
+
 /** Destructive futurerestore restore (explicit CLI only). */
 bool runFuturerestoreRestore(const Gen0Options& options, bool allowMutation);
+
+/** Offline host kernelcache patchfind / apply (no device required). */
+bool runHostKernelPatch(const std::string& kernelcachePath,
+                        const std::string& patchProfilePath,
+                        const std::string& patchOutPath,
+                        bool allowMutation);
 
 bool runBuildRamdisk(const RamdiskOptions& options, const std::string& overlayDir,
                      const std::vector<RamdiskStageEntry>& stagedFiles,
@@ -148,6 +178,34 @@ bool populateDefaultRecoveryChain(const std::string& ipswPath, const std::string
 
 bool runRamdiskProbe(const RamdiskConnectOptions& options, std::string* message);
 
+/** Probe /var/jb bootstrap layout over SSH (jailbroken Normal device). */
+bool runRootlessProbe(const RamdiskConnectOptions& connect, const std::string& udid,
+                      const std::string& iosVersion, std::string* summary);
+
+bool runStoreInit(const std::string& storeRoot);
+bool runStoreBuild(const std::string& storeRoot);
+bool runStoreAdd(const std::string& storeRoot, const std::string& debPath);
+bool runStoreSync(const RamdiskConnectOptions& connect, const std::string& storeRoot,
+                  bool allowMutation);
+bool runStoreInstall(const RamdiskConnectOptions& connect, const std::string& packageName,
+                     bool allowMutation);
+
+bool runStorePublish(const std::string& storeRoot, const std::string& publishRoot);
+
+bool runDeviceTreeMmio(const std::string& inputPath, const std::string& outJsonPath,
+                       bool includeAllRegions);
+
+bool runDeviceTreeRegisterInventory(const std::string& inputPath, const std::string& outJsonPath,
+                                    size_t maxLogEntries);
+
+/** Offline SPTM/hypervisor page-monitor profile from DT + optional kernelcache. */
+bool runHypervisorProbe(const std::string& inputPath, const std::string& kernelcachePath,
+                        const std::string& iosVersion, const std::string& outJsonPath);
+
+bool runIntegrityProbe(const std::string& inputPath, const std::string& kernelcachePath,
+                       const std::string& productType, const std::string& iosVersion,
+                       const std::string& outJsonPath);
+
 bool runRamdiskExec(const RamdiskConnectOptions& options, const std::string& command);
 
 bool runRamdiskPush(const RamdiskConnectOptions& options, const std::string& localPath,
@@ -161,6 +219,12 @@ bool runRamdiskList(const RamdiskConnectOptions& options, const std::string& rem
 /** PongoOS USB probe/boot (see src/pongo/PongoWorkflow.cpp). */
 bool runPongoProbe(bool spawnCheckra1n, bool allowMutation, std::string* message);
 bool runPongoBoot(const Gen0Options& options, bool allowMutation);
+
+/**
+ * DFU orchestration: probe chain → bootrom pwn (gaster/checkm8) → optional Pongo KPF+ramdisk.
+ * @p executeBootrom  When false, probe-only (same as default -j in DFU).
+ */
+bool runDfuJailbreak(DeviceManager& manager, const Gen0Options& options, bool executeBootrom);
 
 } /* namespace PP */
 

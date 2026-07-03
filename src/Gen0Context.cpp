@@ -62,6 +62,10 @@ primitives::ExecutionContext buildExecutionContext(DeviceState state,
         ctx.pongoRamdiskDmgPath = options.ramdisk.buildRamdiskPath;
     }
     ctx.pongoXargsLine = options.pongo.xargsLine;
+    ctx.bypassIntegrityRun = options.bypassIntegrity;
+    ctx.kernelcachePath = options.kernelcachePath;
+    ctx.patchProfilePath = options.patchProfilePath;
+    ctx.patchOutPath = options.patchOutPath;
     return ctx;
 }
 

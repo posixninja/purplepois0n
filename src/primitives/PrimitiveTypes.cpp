@@ -25,6 +25,8 @@ const char* categoryToString(PrimitiveCategory category) {
             return "PacBypass";
         case PrimitiveCategory::PplBypass:
             return "PplBypass";
+        case PrimitiveCategory::PageMonitor:
+            return "PageMonitor";
         case PrimitiveCategory::Patchfinding:
             return "Patchfinding";
         case PrimitiveCategory::PhysRw:
@@ -103,6 +105,8 @@ const char* stageToString(ChainStage stage) {
             return "PacBypass";
         case ChainStage::PplBypass:
             return "PplBypass";
+        case ChainStage::PageMonitor:
+            return "PageMonitor";
         case ChainStage::PhysRw:
             return "PhysRw";
         case ChainStage::Privilege:

@@ -1,0 +1,12 @@
+{
+  "kind": "data-only",
+  "patches": [
+    {
+      "label": "example_cstring_neuter",
+      "offset": 0,
+      "hex": "78",
+      "expect_hex": "63",
+      "note": "Replace offset/expect with ipsw macho dump + cstring search; offset 0 is placeholder"
+    }
+  ]
+}

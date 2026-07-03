@@ -10,6 +10,7 @@
 #include "DFUDevice.h"
 #include "DeviceManager.h"
 #include "Logger.h"
+#include "Usbliter8.h"
 #include "../include/DeviceState.h"
 
 #include <libirecovery.h>
@@ -180,6 +181,10 @@ uint64_t Checkm8::parseEcidFromSerial(const std::string& serial) {
 }
 
 bool Checkm8::serialIndicatesPwned(const std::string& serial) {
+    if (Usbliter8::serialIndicatesPwned(serial)) {
+        /* pwned via usbliter8, not checkm8 — see Usbliter8::serialIndicatesPwned */
+        return false;
+    }
     return serial.find("PWND:") != std::string::npos ||
            serial.find("PWNED:") != std::string::npos ||
            serial.find("checkm8") != std::string::npos;
@@ -205,6 +210,16 @@ bool Checkm8::isKnownUnsupportedCpid(uint32_t cpid) {
 
 std::string Checkm8::cpidToSocName(uint32_t cpid) {
     switch (cpid) {
+        /* Gen 0 bootrom / pre-checkm8 (syringe-style names) */
+        case 0x8720: return "S5L8720 (iPod touch 2G, old BR)";
+        case 0x8721: return "S5L8720 rev (iPod touch 2G)";
+        case 0x8920: return "S5L8920 (iPhone 3GS, old BR)";
+        case 0x8922: return "S5L8922 (iPod touch 3G)";
+        case 0x8925: return "S5L8925 (iPad 1 Wi-Fi)";
+        case 0x8926: return "S5L8926 (iPad 1 GSM)";
+        case 0x8930: return "S5L8930 (iPhone 3GS new BR / A4-class)";
+        case 0x8933: return "S5L8933 (iPad 2 Wi-Fi)";
+        case 0x8935: return "S5L8935 (iPad 2 GSM)";
         case 0x8940: return "A5 (S5L8940)";
         case 0x8942: return "A5X (S5L8942)";
         case 0x8945: return "A5 (S5L8945)";

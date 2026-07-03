@@ -10,10 +10,17 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include <sstream>
 #include "DeviceManager.h"
 #include "Gen0Workflow.h"
 #include "Gen0CliOptions.h"
+#include "DoctorWorkflow.h"
 #include "Checkm8.h"
+#include "Usbliter8.h"
+#include "BootromExploit.h"
+#include "Checkm8Exploit.h"
+#include "Usbliter8Exploit.h"
+#include "AnthraxExploit.h"
 #include "Logger.h"
 #include "MachOParser.h"
 #include "DFUDevice.h"
@@ -23,9 +30,11 @@
 #include "primitives/DfuTransport.h"
 #include "primitives/PrimitiveTypes.h"
 #include "primitives/Gen6Types.h"
+#include "primitives/PrimitiveRegistry.h"
 #include "primitives/TssTypes.h"
 #include "primitives/CodesignTypes.h"
 #include "RamdiskTypes.h"
+#include "EnvUtil.h"
 #include "../include/DeviceState.h"
 
 using namespace PP;
@@ -47,6 +56,8 @@ static void printUsage(const char* programName) {
     std::cout << "  -j, --jailbreak            Run jailbreak scaffold (DFU: probe; other: Gen0)"
               << std::endl;
     std::cout << "  -m, --checkm8              Run checkm8 bootrom exploit (DFU only)" << std::endl;
+    std::cout << "  --dfu-jailbreak            checkm8 + Pongo KPF/ramdisk (make plugins + --i-understand-jailbreak)"
+              << std::endl;
     std::cout << "  --gen0                     Generation 0 scaffold (DFU/Recovery/Normal gaps)"
               << std::endl;
     std::cout << "  --analyze-backup PATH      Parse iTunes backup offline (no restore)"
@@ -145,7 +156,7 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  --pongo-execute              Upload KPF/ramdisk and send bootx (make plugins)"
               << std::endl;
-    std::cout << "  --pongo-kpf PATH             checkra1n KPF blob for --pongo-boot"
+    std::cout << "  --pongo-kpf PATH             KPF blob for --pongo-boot (or PURPLEPOIS0N_KPF / built module)"
               << std::endl;
     std::cout << "  --pongo-ramdisk PATH         Raw HFS+ .dmg for Pongo bulk upload"
               << std::endl;
@@ -173,9 +184,97 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  --post-jb-pipeline           Sign IPA → install → trustcache (make plugins)"
               << std::endl;
+    std::cout << "  --medicine-probe             Post-JB cures plan (hacktivation / AFC2 / capable)"
+              << std::endl;
+    std::cout << "  --medicine-apply             Apply medicine cures over SSH (make plugins)"
+              << std::endl;
+    std::cout << "  --medicine                   Include medicine step in --post-jb-pipeline"
+              << std::endl;
+    std::cout << "  --medicine-cures LIST        afc2,capable,sachet,loader,all (default: afc2,capable,loader)"
+              << std::endl;
+    std::cout << "  --medicine-platform TYPE     SpringBoard platform plist (e.g. iPhone4,1)"
+              << std::endl;
+    std::cout << "  --medicine-capability KEY    Capability to strip (capable.mm; default: wifi)"
+              << std::endl;
+    std::cout << "  --medicine-app PATH          App bundle path for sachet register"
+              << std::endl;
     std::cout << "  --futurerestore-restore      Spawn futurerestore (requires --i-understand-restore)"
               << std::endl;
     std::cout << "  --i-understand-restore       Acknowledge destructive restore with futurerestore"
+              << std::endl;
+    std::cout << "  --jailbreak-execute          Run era execute chain (requires make plugins)"
+              << std::endl;
+    std::cout << "  --i-understand-jailbreak     Acknowledge mutating jailbreak execute path"
+              << std::endl;
+    std::cout << "  --doctor-run                 One-button doctors flow (JSON steps on stdout)"
+              << std::endl;
+    std::cout << "  --capabilities               Print JSON host capabilities (plugins, store)"
+              << std::endl;
+    std::cout << std::endl;
+    std::cout << "DFU jailbreak recipe (A5–A11, device in DFU):" << std::endl;
+    std::cout << "  make plugins kpf" << std::endl;
+    std::cout << "  ./purplepois0n --dfu-jailbreak --i-understand-jailbreak \\" << std::endl;
+    std::cout << "    --pongo-kpf legacy/kpf-purple/build/purplepois0n-kpf-pongo \\" << std::endl;
+    std::cout << "    --pongo-ramdisk /path/to/raw.dmg   # or --ipsw firmware.ipsw" << std::endl;
+    std::cout << "  --kernelcache PATH           Host kernelcache for offline patchfind/patch"
+              << std::endl;
+    std::cout << "  --patch-profile PATH         JSON patch descriptors (offset + hex/bytes)"
+              << std::endl;
+    std::cout << "  --patch-out PATH             Output path for patched kernelcache"
+              << std::endl;
+    std::cout << "  --normal-ssh                 Use SSH for trustcache on jailbroken Normal device"
+              << std::endl;
+    std::cout << "  --rootless-probe             Probe /var/jb bootstrap over SSH (needs --normal-ssh)"
+              << std::endl;
+    std::cout << "  --store-init                 Create host dpkg repo under store/ (or PURPLEPOIS0N_STORE_ROOT)"
+              << std::endl;
+    std::cout << "  --store-build                Regenerate Packages/Release from pool/*.deb"
+              << std::endl;
+    std::cout << "  --store-add PATH             Copy .deb into pool and rebuild index"
+              << std::endl;
+    std::cout << "  --store-sync                 Push repo to device (needs --normal-ssh)"
+              << std::endl;
+    std::cout << "  --store-install PKG          apt/dpkg install package after sync"
+              << std::endl;
+    std::cout << "  --store-publish [PATH]       Export repo tree for HTTPS hosting (default: store-publish)"
+              << std::endl;
+    std::cout << "  --store-root PATH            Override host repo root (default: ./store)"
+              << std::endl;
+    std::cout << "  --post-jb-store              Sync purplepois0n-store during --post-jb-pipeline"
+              << std::endl;
+    std::cout << "  --post-jb-store-install PKG  apt install package after post-jb store sync"
+              << std::endl;
+    std::cout << "  --dtree-mmio PATH            Build MMIO catalog from IPSW/DeviceTree (ipsw dtree -j)"
+              << std::endl;
+    std::cout << "  --dtree-mmio-out PATH        Write MMIO catalog JSON for PhysicalUAF / dmaFail probes"
+              << std::endl;
+    std::cout << "  --dtree-mmio-all             Include all MMIO regions (default: AGX/ANE/arm-io only)"
+              << std::endl;
+    std::cout << "  --dtree-registers PATH       Full hardware register inventory from DeviceTree"
+              << std::endl;
+    std::cout << "  --dtree-registers-out PATH   Write full register catalog JSON"
+              << std::endl;
+    std::cout << "  --dtree-registers-verbose    Log every register entry"
+              << std::endl;
+    std::cout << "  --hypervisor-probe PATH      SPTM/hypervisor page-monitor profile (IPSW or DT JSON)"
+              << std::endl;
+    std::cout << "  --hypervisor-probe-out PATH  Write page-monitor control plan JSON"
+              << std::endl;
+    std::cout << "  --integrity-probe PATH       PAC + data-integrity (MIE) bypass plan"
+              << std::endl;
+    std::cout << "  --integrity-probe-out PATH   Write integrity bypass plan JSON"
+              << std::endl;
+    std::cout << "  --bypass-integrity           Auto-run badRecovery PAC bypass (make plugins)"
+              << std::endl;
+    std::cout << "  --probe-primitive NAME       Run a single built-in primitive (offline OK)"
+              << std::endl;
+    std::cout << "  Env: PURPLEPOIS0N_JBROOT, PURPLEPOIS0N_ROOTLESS, PURPLEPOIS0N_JB_HELPER,"
+              << std::endl;
+    std::cout << "       PURPLEPOIS0N_PALERA1N_HELPER, PURPLEPOIS0N_JBROOT_FIXTURE (offline tree),"
+              << std::endl;
+    std::cout << "       PURPLEPOIS0N_STORE_ROOT, PURPLEPOIS0N_MMIO_CATALOG (exported catalog JSON),"
+              << std::endl;
+    std::cout << "       PURPLEPOIS0N_IPSW / PURPLEPOIS0N_DTREE_INPUT (devicetree-mmio primitive)"
               << std::endl;
     std::cout << std::endl;
     std::cout << "Framework APIs (not all exposed on CLI):" << std::endl;
@@ -187,6 +286,15 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  primitives::ChainRunner    staged probe/execute primitive chain"
               << std::endl;
+}
+
+static void initBootromExploits() {
+    auto& registry = BootromExploitRegistry::instance();
+    registry.registerExploit(std::make_shared<Checkm8Exploit>());
+    registry.registerExploit(std::make_shared<Usbliter8Exploit>());
+    if (envFlagEnabled("PURPLEPOIS0N_ANTHRAX")) {
+        registry.registerPostExploit(std::make_shared<AnthraxExploit>());
+    }
 }
 
 static void listDevices(DeviceManager& manager) {
@@ -227,74 +335,33 @@ static void listDevices(DeviceManager& manager) {
         std::cout << "  Type: " << (device.deviceType.empty() ? "N/A" : device.deviceType) << std::endl;
         std::cout << "  Firmware: " << (device.firmwareVersion.empty() ? "N/A" : device.firmwareVersion) << std::endl;
         if (device.cpid != 0) {
-            std::cout << "  CPID: 0x" << std::hex << std::uppercase << device.cpid << std::dec << std::endl;
+            std::cout << "  CPID: 0x" << std::hex << std::uppercase << device.cpid << std::dec
+                      << " (" << Checkm8::cpidToSocName(device.cpid) << ")" << std::endl;
         }
         std::cout << std::endl;
     }
 }
 
-static bool runDfuChain(DeviceManager& manager, bool allowMutation, const std::string& reportPath) {
-    auto device = manager.getDFUDevice();
-    if (!device) {
-        Logger::error("Failed to open DFU device.");
-        return false;
-    }
-
-    DfuTransport transport(*device);
-    ExecutionContext ctx;
-    ctx.deviceState = DeviceState::DFU;
-    ctx.transport = &transport;
-    ctx.allowMutation = allowMutation;
-    try {
-        ctx.cpid = Checkm8::parseCpidFromSerial(device->getSerialNumber());
-    } catch (const std::exception&) {
-        /* optional */
-    }
-    ctx.jailbreakGeneration = detectJailbreakGeneration(ctx);
-
-    ChainRunner runner;
-    runner.runProbeChain(ctx);
-    if (!reportPath.empty()) {
-        if (runner.writeReportToFile(reportPath)) {
-            Logger::info("Wrote chain report: " + reportPath);
-        } else {
-            Logger::warn("Failed to write chain report: " + reportPath);
-        }
-    }
-
-    if (!allowMutation) {
-        Logger::info("DFU probe complete — use -m/--checkm8 to run bootrom exploit.");
-        return true;
-    }
-
-    device.reset();
-
-    if (exploitPluginsEnabled()) {
-        ChainRunner executeRunner;
-        ctx.transport = nullptr;
-        ctx.allowMutation = true;
-        executeRunner.runExecuteChain(ctx);
-    } else {
-        Logger::warn("Mutating bootrom primitives require PURPLEPOIS0N_ENABLE_EXPLOIT_PLUGINS at compile time.");
-        Logger::info("Delegating to Checkm8::runCheckm8 (external gaster/ipwndfu).");
-    }
-
-    return Checkm8::runCheckm8(manager);
-}
-
 static bool performJailbreak(DeviceManager& manager,
                              const std::string& targetUDID,
-                             const std::string& reportPath) {
+                             const std::string& reportPath,
+                             const Gen0Options& options) {
     Logger::info("Starting jailbreak process...");
     const DeviceState state = manager.detectDeviceState(targetUDID);
     if (state == DeviceState::DFU) {
+        Gen0Options dfuOpts = options;
+        dfuOpts.reportPath = reportPath;
+        if (options.jailbreakExecute) {
+            Logger::info("DFU mode — bootrom pwn + Pongo boot chain");
+            return runDfuJailbreak(manager, dfuOpts, true);
+        }
         Logger::info("DFU mode — running primitive probe chain (no auto-pwn)");
-        return runDfuChain(manager, false, reportPath);
+        return runDfuJailbreak(manager, dfuOpts, false);
     }
     Logger::info("Non-DFU mode — Gen 0 scaffold");
-    Gen0Options options;
-    options.reportPath = reportPath;
-    return runGen0Jailbreak(manager, targetUDID, options);
+    Gen0Options jbOptions = options;
+    jbOptions.reportPath = reportPath;
+    return runGen0Jailbreak(manager, targetUDID, jbOptions);
 }
 
 static bool resolveNormalUdid(DeviceManager& manager, const std::string& targetUDID,
@@ -373,10 +440,13 @@ static bool runAfcPull(DeviceManager& manager, const std::string& targetUDID,
 }
 
 int main(int argc, char* argv[]) {
+    initBootromExploits();
+
     bool listDevicesFlag = false;
     bool jailbreakFlag = true;
     bool gen0Flag = false;
     bool checkm8Flag = false;
+    bool dfuJailbreakFlag = false;
     bool analyzeBackupFlag = false;
     bool analyzeCrashFlag = false;
     bool analyzeBinaryFlag = false;
@@ -456,8 +526,46 @@ int main(int argc, char* argv[]) {
     std::string pongoRamdiskPath;
     std::string pongoXargsLine;
     bool postJbPipelineFlag = false;
+    bool postJbStoreFlag = false;
+    std::string postJbStoreInstallPkg;
+    bool medicineProbeFlag = false;
+    bool medicineApplyFlag = false;
+    bool medicineWithPipelineFlag = false;
+    std::string medicineCures;
+    std::string medicinePlatform;
+    std::string medicineCapability;
+    std::string medicineAppPath;
     bool futurerestoreRestoreFlag = false;
     bool understandRestoreFlag = false;
+    bool jailbreakExecuteFlag = false;
+    bool understandJailbreakFlag = false;
+    bool doctorRunFlag = false;
+    bool capabilitiesFlag = false;
+    bool normalSshFlag = false;
+    bool rootlessProbeFlag = false;
+    bool storeInitFlag = false;
+    bool storeBuildFlag = false;
+    bool storeSyncFlag = false;
+    bool storePublishFlag = false;
+    std::string storePublishPath;
+    std::string storeAddPath;
+    std::string storeInstallPkg;
+    std::string storeRootPath;
+    std::string dtreeMmioPath;
+    std::string dtreeMmioOutPath;
+    bool dtreeMmioAllFlag = false;
+    std::string dtreeRegistersPath;
+    std::string dtreeRegistersOutPath;
+    bool dtreeRegistersVerboseFlag = false;
+    std::string hypervisorProbePath;
+    std::string hypervisorProbeOutPath;
+    std::string integrityProbePath;
+    std::string integrityProbeOutPath;
+    bool bypassIntegrityFlag = false;
+    std::string probePrimitiveName;
+    std::string kernelcachePath;
+    std::string patchProfilePath;
+    std::string patchOutPath;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -484,6 +592,11 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--checkm8") == 0) {
             checkm8Flag = true;
             jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--dfu-jailbreak") == 0) {
+            dfuJailbreakFlag = true;
+            jailbreakFlag = false;
+            checkm8Flag = false;
+            jailbreakExecuteFlag = true;
         } else if (strcmp(argv[i], "--analyze-backup") == 0) {
             if (i + 1 < argc) {
                 backupPath = argv[++i];
@@ -906,11 +1019,218 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "--post-jb-pipeline") == 0) {
             postJbPipelineFlag = true;
             jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--post-jb-store") == 0) {
+            postJbStoreFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--post-jb-store-install") == 0) {
+            if (i + 1 < argc) {
+                postJbStoreInstallPkg = argv[++i];
+                postJbStoreFlag = true;
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--post-jb-store-install requires a PACKAGE argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--medicine-probe") == 0) {
+            medicineProbeFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--medicine-apply") == 0) {
+            medicineApplyFlag = true;
+            medicineProbeFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--medicine") == 0) {
+            medicineWithPipelineFlag = true;
+            medicineProbeFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--medicine-cures") == 0) {
+            if (i + 1 < argc) {
+                medicineCures = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--medicine-cures requires a comma-separated list");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--medicine-platform") == 0) {
+            if (i + 1 < argc) {
+                medicinePlatform = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--medicine-platform requires TYPE");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--medicine-capability") == 0) {
+            if (i + 1 < argc) {
+                medicineCapability = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--medicine-capability requires KEY");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--medicine-app") == 0) {
+            if (i + 1 < argc) {
+                medicineAppPath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--medicine-app requires PATH");
+                return 1;
+            }
         } else if (strcmp(argv[i], "--futurerestore-restore") == 0) {
             futurerestoreRestoreFlag = true;
             jailbreakFlag = false;
         } else if (strcmp(argv[i], "--i-understand-restore") == 0) {
             understandRestoreFlag = true;
+        } else if (strcmp(argv[i], "--jailbreak-execute") == 0) {
+            jailbreakExecuteFlag = true;
+        } else if (strcmp(argv[i], "--i-understand-jailbreak") == 0) {
+            understandJailbreakFlag = true;
+        } else if (strcmp(argv[i], "--capabilities") == 0) {
+            capabilitiesFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--doctor-run") == 0) {
+            doctorRunFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--kernelcache") == 0) {
+            if (i + 1 < argc) {
+                kernelcachePath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--kernelcache requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--patch-profile") == 0) {
+            if (i + 1 < argc) {
+                patchProfilePath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--patch-profile requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--patch-out") == 0) {
+            if (i + 1 < argc) {
+                patchOutPath = argv[++i];
+            } else {
+                Logger::error("--patch-out requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--normal-ssh") == 0) {
+            normalSshFlag = true;
+        } else if (strcmp(argv[i], "--rootless-probe") == 0) {
+            rootlessProbeFlag = true;
+        } else if (strcmp(argv[i], "--store-init") == 0) {
+            storeInitFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--store-build") == 0) {
+            storeBuildFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--store-add") == 0) {
+            if (i + 1 < argc) {
+                storeAddPath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--store-add requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--store-sync") == 0) {
+            storeSyncFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--store-install") == 0) {
+            if (i + 1 < argc) {
+                storeInstallPkg = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--store-install requires a PACKAGE argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--store-root") == 0) {
+            if (i + 1 < argc) {
+                storeRootPath = argv[++i];
+            } else {
+                Logger::error("--store-root requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--store-publish") == 0) {
+            storePublishFlag = true;
+            jailbreakFlag = false;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                storePublishPath = argv[++i];
+            }
+        } else if (strcmp(argv[i], "--dtree-mmio") == 0) {
+            if (i + 1 < argc) {
+                dtreeMmioPath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--dtree-mmio requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--dtree-mmio-out") == 0) {
+            if (i + 1 < argc) {
+                dtreeMmioOutPath = argv[++i];
+            } else {
+                Logger::error("--dtree-mmio-out requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--dtree-mmio-all") == 0) {
+            dtreeMmioAllFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--dtree-registers") == 0) {
+            if (i + 1 < argc) {
+                dtreeRegistersPath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--dtree-registers requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--dtree-registers-out") == 0) {
+            if (i + 1 < argc) {
+                dtreeRegistersOutPath = argv[++i];
+            } else {
+                Logger::error("--dtree-registers-out requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--dtree-registers-verbose") == 0) {
+            dtreeRegistersVerboseFlag = true;
+        } else if (strcmp(argv[i], "--hypervisor-probe") == 0) {
+            if (i + 1 < argc) {
+                hypervisorProbePath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--hypervisor-probe requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--hypervisor-probe-out") == 0) {
+            if (i + 1 < argc) {
+                hypervisorProbeOutPath = argv[++i];
+            } else {
+                Logger::error("--hypervisor-probe-out requires a PATH argument");
+                return 1;
+            }
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--integrity-probe") == 0) {
+            if (i + 1 < argc) {
+                integrityProbePath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--integrity-probe requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--integrity-probe-out") == 0) {
+            if (i + 1 < argc) {
+                integrityProbeOutPath = argv[++i];
+            } else {
+                Logger::error("--integrity-probe-out requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--bypass-integrity") == 0) {
+            bypassIntegrityFlag = true;
+            jailbreakExecuteFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--probe-primitive") == 0) {
+            if (i + 1 < argc) {
+                probePrimitiveName = argv[++i];
+            } else {
+                Logger::error("--probe-primitive requires a NAME");
+                return 1;
+            }
         } else {
             Logger::error("Unknown option: " + std::string(argv[i]));
             printUsage(argv[0]);
@@ -1069,6 +1389,97 @@ int main(int argc, char* argv[]) {
         return runPongoProbe(pongoSpawnCheckra1nFlag, false, &message) ? 0 : 1;
     }
 
+    if (normalSshFlag) {
+        ramdiskConnectCli.transport = RamdiskTransport::Ssh;
+    }
+
+    if (rootlessProbeFlag) {
+        std::string summary;
+        const bool ok = runRootlessProbe(ramdiskConnectCli, targetUDID, std::string(), &summary);
+        if (!summary.empty()) {
+            Logger::info("Rootless summary: " + summary);
+        }
+        return ok ? 0 : 1;
+    }
+
+    if (storeInitFlag) {
+        return runStoreInit(storeRootPath) ? 0 : 1;
+    }
+    if (storeBuildFlag) {
+        return runStoreBuild(storeRootPath) ? 0 : 1;
+    }
+    if (!storeAddPath.empty()) {
+        return runStoreAdd(storeRootPath, storeAddPath) ? 0 : 1;
+    }
+    if (storePublishFlag) {
+        return runStorePublish(storeRootPath, storePublishPath) ? 0 : 1;
+    }
+    if (storeSyncFlag) {
+        if (!normalSshFlag) {
+            Logger::warn("--store-sync expects --normal-ssh (or PURPLEPOIS0N_NORMAL_SSH=1)");
+        }
+        return runStoreSync(ramdiskConnectCli, storeRootPath, true) ? 0 : 1;
+    }
+    if (!storeInstallPkg.empty()) {
+        if (!normalSshFlag) {
+            Logger::warn("--store-install expects --normal-ssh");
+        }
+        return runStoreInstall(ramdiskConnectCli, storeInstallPkg, true) ? 0 : 1;
+    }
+
+    if (!dtreeMmioPath.empty()) {
+        return runDeviceTreeMmio(dtreeMmioPath, dtreeMmioOutPath, dtreeMmioAllFlag) ? 0 : 1;
+    }
+
+    if (!integrityProbePath.empty()) {
+        return runIntegrityProbe(integrityProbePath, kernelcachePath, "", "",
+                                 integrityProbeOutPath)
+                   ? 0
+                   : 1;
+    }
+
+    if (!hypervisorProbePath.empty()) {
+        return runHypervisorProbe(hypervisorProbePath, kernelcachePath, "", hypervisorProbeOutPath)
+                   ? 0
+                   : 1;
+    }
+
+    if (!dtreeRegistersPath.empty()) {
+        const size_t maxLog = dtreeRegistersVerboseFlag ? 0 : 64;
+        return runDeviceTreeRegisterInventory(dtreeRegistersPath, dtreeRegistersOutPath, maxLog)
+                   ? 0
+                   : 1;
+    }
+
+    if (!probePrimitiveName.empty()) {
+        primitives::PrimitiveRegistry& registry = primitives::PrimitiveRegistry::instance();
+        registry.registerBuiltins();
+        primitives::Primitive* primitive = registry.findByName(probePrimitiveName);
+        if (primitive == nullptr) {
+            Logger::error("Unknown primitive: " + probePrimitiveName);
+            return 1;
+        }
+        primitives::ExecutionContext ctx;
+        ctx.deviceState = DeviceState::Unknown;
+        ctx.jailbreakGeneration = primitives::JailbreakGeneration::Gen6;
+        ctx.ramdiskConnect = ramdiskConnectCli;
+        if (!targetUDID.empty()) {
+            ctx.udid = targetUDID;
+        }
+        const primitives::PrimitiveResult result = primitive->execute(ctx);
+        return (result == primitives::PrimitiveResult::Success ||
+                result == primitives::PrimitiveResult::ProbeOnly)
+                   ? 0
+                   : 1;
+    }
+
+    if (!kernelcachePath.empty()) {
+        const bool allowPatch = exploitPluginsEnabled() && !patchProfilePath.empty();
+        return runHostKernelPatch(kernelcachePath, patchProfilePath, patchOutPath, allowPatch)
+                   ? 0
+                   : 1;
+    }
+
     auto buildCliParsed = [&]() -> CliParsedOptions {
         CliParsedOptions cli;
         cli.reportPath = reportPath;
@@ -1107,13 +1518,52 @@ int main(int argc, char* argv[]) {
         cli.pongoRamdiskPath = pongoRamdiskPath;
         cli.pongoXargsLine = pongoXargsLine;
         cli.postJbPipelineFlag = postJbPipelineFlag;
+        cli.postJbStoreFlag = postJbStoreFlag;
+        cli.postJbStoreInstallPkg = postJbStoreInstallPkg;
+        cli.storeRoot = storeRootPath;
+        cli.medicineProbeFlag = medicineProbeFlag || medicineWithPipelineFlag;
+        cli.medicineApplyFlag = medicineApplyFlag;
+        cli.medicineCures = medicineCures;
+        cli.medicinePlatform = medicinePlatform;
+        cli.medicineCapability = medicineCapability;
+        cli.medicineAppPath = medicineAppPath;
         cli.futurerestoreRestoreFlag = futurerestoreRestoreFlag;
+        cli.jailbreakExecuteFlag = jailbreakExecuteFlag;
+        cli.bypassIntegrityFlag = bypassIntegrityFlag;
+        cli.kernelcachePath = kernelcachePath;
+        cli.patchProfilePath = patchProfilePath;
+        cli.patchOutPath = patchOutPath;
         if (signMachoFlag || signAppFlag || signIpaFlag) {
             cli.codesignInputPath = signInputPath;
             cli.codesignOutputPath = signOutputPath;
         }
         return cli;
     };
+
+    if (jailbreakExecuteFlag) {
+        if (!understandJailbreakFlag) {
+            Logger::error("jailbreak execute requires --i-understand-jailbreak");
+            return 1;
+        }
+        if (!exploitPluginsEnabled()) {
+            Logger::error("jailbreak execute requires make plugins");
+            return 1;
+        }
+    }
+
+    if (dfuJailbreakFlag) {
+        const DeviceState state = manager.detectDeviceState(targetUDID);
+        if (state != DeviceState::DFU) {
+            Logger::error("--dfu-jailbreak requires a device in DFU mode.");
+            return 1;
+        }
+        Gen0Options dfuOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
+        dfuOpts.reportPath = reportPath;
+        dfuOpts.jailbreakExecute = true;
+        dfuOpts.pongo.bootRun = true;
+        dfuOpts.pongo.execute = true;
+        return runDfuJailbreak(manager, dfuOpts, true) ? 0 : 1;
+    }
 
     if (pongoBootFlag) {
         return runPongoBoot(gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::PongoBoot),
@@ -1140,6 +1590,15 @@ int main(int argc, char* argv[]) {
     codesignCli.outputPath = signOutputPath;
     codesignCli.adHoc = adHocSign;
 
+    if (medicineProbeFlag && !postJbPipelineFlag && !gen0Flag) {
+        Gen0Options medOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
+        medOpts.ramdisk.connect = ramdiskConnectCli;
+        if (medOpts.ramdisk.connect.udid.empty() && !targetUDID.empty()) {
+            medOpts.ramdisk.connect.udid = targetUDID;
+        }
+        return runMedicinePipeline(manager, targetUDID, medOpts, medicineApplyFlag) ? 0 : 1;
+    }
+
     if (postJbPipelineFlag && !gen0Flag) {
         if (!exploitPluginsEnabled()) {
             Logger::error("Post-jb pipeline requires make plugins");
@@ -1154,6 +1613,7 @@ int main(int argc, char* argv[]) {
         pipeOpts.ipaInstallPath = installIpaPath;
         pipeOpts.trustCachePath = trustCachePath;
         pipeOpts.ramdisk.connect = ramdiskConnectCli;
+        pipeOpts.storeRoot = storeRootPath;
         if (pipeOpts.ramdisk.connect.udid.empty() && !targetUDID.empty()) {
             pipeOpts.ramdisk.connect.udid = targetUDID;
         }
@@ -1174,6 +1634,16 @@ int main(int argc, char* argv[]) {
                        : 1;
         }
         if (trustCacheAddFlag) {
+            if (normalSshFlag || ramdiskConnectCli.transport == RamdiskTransport::Ssh) {
+                ExecutionContext tcCtx;
+                tcCtx.trustCachePath = trustCachePath;
+                tcCtx.ramdiskConnect = ramdiskConnectCli;
+                if (tcCtx.ramdiskConnect.udid.empty()) {
+                    tcCtx.ramdiskConnect.udid = targetUDID;
+                }
+                tcCtx.ramdiskConnect.transport = RamdiskTransport::Ssh;
+                return runTrustCacheAddWithContext(tcCtx, exploitPluginsEnabled()) ? 0 : 1;
+            }
             return runTrustCacheAdd(trustCachePath, exploitPluginsEnabled()) ? 0 : 1;
         }
     }
@@ -1202,11 +1672,30 @@ int main(int argc, char* argv[]) {
             Logger::error("checkm8 requires a device in DFU mode.");
             return 1;
         }
-        return runDfuChain(manager, true, reportPath) ? 0 : 1;
+        Gen0Options dfuOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
+        dfuOpts.reportPath = reportPath;
+        if (pongoExecuteFlag && !exploitPluginsEnabled()) {
+            Logger::error("-m with --pongo-execute requires make plugins");
+            return 1;
+        }
+        return runDfuJailbreak(manager, dfuOpts, true) ? 0 : 1;
     }
     
+    if (capabilitiesFlag) {
+        std::cout << "{\"plugins\":" << (exploitPluginsEnabled() ? "true" : "false")
+                  << ",\"doctor\":true,\"store\":true,\"normalSsh\":true}" << std::endl;
+        return 0;
+    }
+
+    if (doctorRunFlag) {
+        Gen0Options doctorOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
+        doctorOpts.reportPath = reportPath;
+        return runDoctorFlow(manager, targetUDID, doctorOpts) ? 0 : 1;
+    }
+
     if (jailbreakFlag) {
-        if (!performJailbreak(manager, targetUDID, reportPath)) {
+        Gen0Options jbOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
+        if (!performJailbreak(manager, targetUDID, reportPath, jbOpts)) {
             return 1;
         }
     }

@@ -18,19 +18,29 @@
 #include "primitives/ChainRunner.h"
 #include "primitives/DfuTransport.h"
 #include "primitives/RecoveryTransport.h"
+#include "primitives/RootlessDelegate.h"
+#include "primitives/RootlessLayout.h"
+#include "store/DpkgStore.h"
+#include "store/DpkgStoreSync.h"
+#include "devicetree/DeviceTreeCatalog.h"
+#include "devicetree/HypervisorProfile.h"
+#include "devicetree/IntegrityProfile.h"
 #include "primitives/Gen6Types.h"
 #include "primitives/TssTypes.h"
 #include "primitives/TssDelegate.h"
 #include "primitives/CodesignDelegate.h"
 #include "primitives/CodesignTypes.h"
 #include "primitives/TrustCacheDelegate.h"
+#include "primitives/MedicineDelegate.h"
 #include "primitives/SideloadPrimitive.h"
 #include "primitives/PongoDelegate.h"
+#include "primitives/HostPatchEngine.h"
 #include "IpaSignHelper.h"
 #include "RamdiskPackager.h"
 #include "RamdiskWorkDir.h"
 #include "RamdiskInspector.h"
 #include "RamdiskClient.h"
+#include "BootromExploit.h"
 #include "../include/DeviceState.h"
 #include <fstream>
 #include <iostream>
@@ -212,6 +222,12 @@ bool runGen0Jailbreak(DeviceManager& manager,
                         workflowOk = false;
                     }
                 }
+                if (options.jailbreakExecute && primitives::exploitPluginsEnabled()) {
+                    ctx.allowMutation = true;
+                    if (!runner.runExecuteChain(ctx)) {
+                        workflowOk = false;
+                    }
+                }
                 break;
             }
             case DeviceState::Recovery: {
@@ -260,6 +276,12 @@ bool runGen0Jailbreak(DeviceManager& manager,
                 runner.runProbeChain(ctx);
                 if (options.postJbPipeline && primitives::exploitPluginsEnabled()) {
                     if (!runPostJbPipeline(manager, targetUDID, options)) {
+                        workflowOk = false;
+                    }
+                }
+                if (options.jailbreakExecute && primitives::exploitPluginsEnabled()) {
+                    ctx.allowMutation = true;
+                    if (!runner.runExecuteChain(ctx)) {
                         workflowOk = false;
                     }
                 }
@@ -717,6 +739,8 @@ bool runPostJbPipeline(DeviceManager& manager,
                        const std::string& targetUDID,
                        const Gen0Options& options) {
     Logger::info("Post-jailbreak pipeline: sign → install → trustcache");
+    Logger::info("  [PostJB] rootless devices: trustcache via jbctl under " +
+                 primitives::RootlessLayout::resolveJbroot());
 
     if (!primitives::exploitPluginsEnabled()) {
         Logger::error("Post-jb pipeline requires make plugins");
@@ -757,8 +781,75 @@ bool runPostJbPipeline(DeviceManager& manager,
         }
     }
 
+    if (options.medicineRun || options.medicineApply) {
+        if (!runMedicinePipeline(manager, targetUDID, options, options.medicineApply)) {
+            return false;
+        }
+    }
+
+    if (options.postJbStoreSync) {
+        RamdiskConnectOptions connect = options.ramdisk.connect;
+        if (connect.udid.empty() && !targetUDID.empty()) {
+            connect.udid = targetUDID;
+        }
+        std::string rootlessSummary;
+        if (!runRootlessProbe(connect, targetUDID, std::string(), &rootlessSummary)) {
+            Logger::warn("  [PostJB] rootless probe failed — skipping store sync");
+        } else {
+            const std::string storeRoot =
+                options.storeRoot.empty() ? store::resolveStoreRoot() : options.storeRoot;
+            if (!runStoreSync(connect, storeRoot, true)) {
+                return false;
+            }
+            if (!options.postJbStoreInstallPkg.empty()) {
+                if (!runStoreInstall(connect, options.postJbStoreInstallPkg, true)) {
+                    return false;
+                }
+            }
+        }
+    }
+
     Logger::info("Post-jb pipeline complete");
     return true;
+}
+
+bool runMedicinePipeline(DeviceManager& manager,
+                         const std::string& targetUDID,
+                         const Gen0Options& options,
+                         bool apply) {
+    Logger::info("Medicine: post-install cures (hacktivation / AFC2 / capable / loader)");
+
+    primitives::ExecutionContext ctx;
+    ctx.deviceState = DeviceState::Normal;
+    ctx.allowMutation = apply;
+    ctx.medicineRun = true;
+    ctx.medicineApply = apply;
+    ctx.medicineCures = options.medicineCures;
+    ctx.medicinePlatform = options.medicinePlatform;
+    ctx.medicineCapability = options.medicineCapability;
+    ctx.medicineAppPath = options.medicineAppPath;
+    ctx.ramdiskConnect = options.ramdisk.connect;
+    if (ctx.ramdiskConnect.udid.empty() && !targetUDID.empty()) {
+        ctx.ramdiskConnect.udid = targetUDID;
+    }
+
+    if (!targetUDID.empty()) {
+        ctx.udid = targetUDID;
+    } else {
+        try {
+            auto device = manager.getMobileDevice("");
+            if (device) {
+                ctx.udid = device->getUDID();
+                ctx.iosVersion = device->getValue("", "ProductVersion");
+                ctx.productType = device->getValue("", "ProductType");
+            }
+        } catch (const std::exception&) {
+        }
+    }
+
+    const primitives::PrimitiveResult result =
+        primitives::MedicineDelegate::runMedicine(ctx, apply);
+    return result == primitives::PrimitiveResult::Success;
 }
 
 bool runFuturerestoreRestore(const Gen0Options& options, bool allowMutation) {
@@ -878,6 +969,253 @@ bool runRamdiskProbe(const RamdiskConnectOptions& options, std::string* message)
     return client.probe(message);
 }
 
+bool runRootlessProbe(const RamdiskConnectOptions& connect, const std::string& udid,
+                      const std::string& iosVersion, std::string* summary) {
+    Logger::info("Rootless bootstrap probe (" + primitives::RootlessLayout::resolveJbroot() + ")");
+
+    primitives::ExecutionContext ctx;
+    ctx.deviceState = DeviceState::Normal;
+    ctx.udid = udid;
+    ctx.iosVersion = iosVersion;
+    ctx.ramdiskConnect = connect;
+    ctx.jailbreakGeneration = primitives::detectJailbreakGeneration(ctx);
+
+    if (!primitives::RootlessDelegate::sshConfigured(ctx)) {
+        Logger::error("  [Rootless] SSH not configured — use --normal-ssh and iproxy 2222 22");
+        Logger::info("  [Rootless] or set PURPLEPOIS0N_NORMAL_SSH=1 with forwarded port");
+        return false;
+    }
+
+    const primitives::RootlessProbeResult result = primitives::RootlessDelegate::probeDevice(ctx);
+    primitives::RootlessDelegate::logProbeResult(result);
+
+    if (summary != nullptr) {
+        std::ostringstream oss;
+        oss << "jbroot=" << result.jbroot << " exists=" << (result.jbrootExists ? "1" : "0")
+            << " layout=" << (result.layoutComplete ? "complete" : "partial");
+        if (!result.bootstrapFlavor.empty()) {
+            oss << " flavor=" << result.bootstrapFlavor;
+        }
+        *summary = oss.str();
+    }
+
+    return result.sshReachable && result.jbrootExists;
+}
+
+bool runStoreInit(const std::string& storeRoot) {
+    std::string error;
+    if (!store::initRepository(storeRoot, &error)) {
+        Logger::error("  [Store] " + error);
+        return false;
+    }
+    return true;
+}
+
+bool runStoreBuild(const std::string& storeRoot) {
+    const store::StoreBuildResult built = store::buildRepository(storeRoot);
+    if (!built.success) {
+        Logger::error("  [Store] " + built.error);
+        return false;
+    }
+    Logger::info("  [Store] wrote " + built.packagesPath);
+    return true;
+}
+
+bool runStoreAdd(const std::string& storeRoot, const std::string& debPath) {
+    std::string error;
+    if (!store::addDebToPool(storeRoot, debPath, &error)) {
+        Logger::error("  [Store] " + error);
+        return false;
+    }
+    return runStoreBuild(storeRoot);
+}
+
+bool runStoreSync(const RamdiskConnectOptions& connect, const std::string& storeRoot,
+                  bool allowMutation) {
+    const store::StoreSyncResult synced = store::syncStoreToDevice(connect, storeRoot, allowMutation);
+    if (!synced.success) {
+        Logger::error("  [Store] " + synced.error);
+        return false;
+    }
+    Logger::info("  [Store] device repo at " + synced.deviceStorePath);
+    return true;
+}
+
+bool runStoreInstall(const RamdiskConnectOptions& connect, const std::string& packageName,
+                     bool allowMutation) {
+    std::string error;
+    if (!store::installPackageOnDevice(connect, primitives::RootlessLayout::resolveJbroot(),
+                                       packageName, allowMutation, &error)) {
+        Logger::error("  [Store] " + error);
+        return false;
+    }
+    return true;
+}
+
+bool runStorePublish(const std::string& storeRoot, const std::string& publishRoot) {
+    const store::StorePublishResult published = store::publishRepository(storeRoot, publishRoot);
+    if (!published.success) {
+        Logger::error("  [Store] " + published.error);
+        return false;
+    }
+    Logger::info("  [Store] publish ready at " + published.publishRoot);
+    return true;
+}
+
+bool runDeviceTreeMmio(const std::string& inputPath, const std::string& outJsonPath,
+                       bool includeAllRegions) {
+    if (inputPath.empty()) {
+        Logger::error("  [DeviceTree] input path required");
+        return false;
+    }
+    const devicetree::DeviceTreeCatalog catalog =
+        devicetree::buildCatalogFromPath(inputPath, includeAllRegions);
+    devicetree::logCatalogSummary(catalog);
+    devicetree::logAgxMmioHints(catalog);
+    if (!catalog.success) {
+        return false;
+    }
+    devicetree::setGlobalCatalog(catalog);
+    if (!outJsonPath.empty()) {
+        std::string writeError;
+        if (!devicetree::writeCatalogJson(catalog, outJsonPath, &writeError)) {
+            Logger::error("  [DeviceTree] " + writeError);
+            return false;
+        }
+        Logger::info("  [DeviceTree] wrote " + outJsonPath);
+    }
+    return true;
+}
+
+bool runDeviceTreeRegisterInventory(const std::string& inputPath, const std::string& outJsonPath,
+                                    size_t maxLogEntries) {
+    if (inputPath.empty()) {
+        Logger::error("  [DeviceTree] input path required");
+        return false;
+    }
+    const devicetree::DeviceTreeCatalog catalog =
+        devicetree::buildCatalogFromPath(inputPath, true);
+    devicetree::logCatalogSummary(catalog);
+    devicetree::logFullRegisterInventory(catalog, maxLogEntries);
+    if (!catalog.success) {
+        return false;
+    }
+    devicetree::setGlobalCatalog(catalog);
+    if (!outJsonPath.empty()) {
+        std::string writeError;
+        if (!devicetree::writeCatalogJson(catalog, outJsonPath, &writeError)) {
+            Logger::error("  [DeviceTree] " + writeError);
+            return false;
+        }
+        Logger::info("  [DeviceTree] wrote " + outJsonPath);
+    }
+    return true;
+}
+
+bool runHypervisorProbe(const std::string& inputPath, const std::string& kernelcachePath,
+                        const std::string& iosVersion, const std::string& outJsonPath) {
+    if (inputPath.empty()) {
+        Logger::error("  [PageMonitor] input path required (--hypervisor-probe PATH or --ipsw)");
+        return false;
+    }
+
+    devicetree::DeviceTreeCatalog catalog;
+    if (inputPath.size() >= 5 && inputPath.compare(inputPath.size() - 5, 5, ".json") == 0) {
+        catalog = devicetree::buildCatalogFromJsonFile(inputPath, false);
+    } else {
+        catalog = devicetree::buildCatalogFromPath(inputPath, false);
+    }
+    if (!catalog.success) {
+        Logger::error("  [PageMonitor] " + catalog.error);
+        return false;
+    }
+
+    const devicetree::HypervisorProfile profile = devicetree::buildHypervisorProfile(
+        catalog.summary, 0, iosVersion, kernelcachePath);
+    devicetree::logHypervisorControlPlan(profile);
+
+    if (!outJsonPath.empty()) {
+        std::ostringstream body;
+        body << "{\n";
+        body << "  \"authority\": \"" << devicetree::pageAuthorityToString(profile.authority)
+             << "\",\n";
+        body << "  \"hasVirtualization\": " << (profile.hasVirtualization ? "true" : "false")
+             << ",\n";
+        body << "  \"pageMonitorPresent\": " << (profile.pageMonitorPresent ? "true" : "false")
+             << ",\n";
+        body << "  \"kernelHypervisorStrings\": "
+             << (profile.kernelHypervisorStrings ? "true" : "false") << ",\n";
+        body << "  \"summary\": \"" << profile.summary << "\",\n";
+        body << "  \"strategies\": [";
+        for (size_t i = 0; i < profile.strategies.size(); ++i) {
+            if (i > 0) {
+                body << ", ";
+            }
+            body << "\"" << devicetree::pageControlStrategyToString(profile.strategies[i])
+                 << "\"";
+        }
+        body << "]\n}\n";
+        std::ofstream out(outJsonPath.c_str(), std::ios::binary | std::ios::trunc);
+        if (!out) {
+            Logger::error("  [PageMonitor] cannot write " + outJsonPath);
+            return false;
+        }
+        out << body.str();
+        Logger::info("  [PageMonitor] wrote " + outJsonPath);
+    }
+    return true;
+}
+
+bool runIntegrityProbe(const std::string& inputPath, const std::string& kernelcachePath,
+                       const std::string& productType, const std::string& iosVersion,
+                       const std::string& outJsonPath) {
+    if (inputPath.empty() && productType.empty()) {
+        Logger::error("  [Integrity] input path or product type required (--integrity-probe PATH)");
+        return false;
+    }
+
+    devicetree::DeviceTreeSummary summary;
+    if (!inputPath.empty()) {
+        devicetree::DeviceTreeCatalog catalog;
+        if (inputPath.size() >= 5 && inputPath.compare(inputPath.size() - 5, 5, ".json") == 0) {
+            catalog = devicetree::buildCatalogFromJsonFile(inputPath, false);
+        } else {
+            catalog = devicetree::buildCatalogFromPath(inputPath, false);
+        }
+        if (!catalog.success) {
+            Logger::error("  [Integrity] " + catalog.error);
+            return false;
+        }
+        summary = catalog.summary;
+    }
+
+    const std::string product = productType.empty() ? summary.model : productType;
+    const devicetree::IntegrityProfile profile =
+        devicetree::buildIntegrityProfile(summary, product, iosVersion, false, kernelcachePath);
+    devicetree::logIntegrityBypassPlan(profile);
+
+    if (!outJsonPath.empty()) {
+        std::ostringstream body;
+        body << "{\n";
+        body << "  \"arm64e\": " << (profile.arm64e ? "true" : "false") << ",\n";
+        body << "  \"pacRequired\": " << (profile.pacCodeRequired ? "true" : "false") << ",\n";
+        body << "  \"dataIntegrityRequired\": "
+             << (devicetree::dataIntegrityBypassRequired(profile) ? "true" : "false") << ",\n";
+        body << "  \"recommendedModule\": \"" << profile.recommendedModule << "\",\n";
+        body << "  \"recommendedEnvKey\": \"" << profile.recommendedEnvKey << "\",\n";
+        body << "  \"summary\": \"" << profile.summary << "\"\n";
+        body << "}\n";
+        std::ofstream out(outJsonPath.c_str(), std::ios::binary | std::ios::trunc);
+        if (!out) {
+            Logger::error("  [Integrity] cannot write " + outJsonPath);
+            return false;
+        }
+        out << body.str();
+        Logger::info("  [Integrity] wrote " + outJsonPath);
+    }
+    return true;
+}
+
 bool runRamdiskExec(const RamdiskConnectOptions& options, const std::string& command) {
     if (command.empty()) {
         Logger::error("ramdisk-exec requires a command");
@@ -952,6 +1290,91 @@ bool runRamdiskList(const RamdiskConnectOptions& options, const std::string& rem
     }
     std::cout << result.stdoutText;
     return true;
+}
+
+bool runHostKernelPatch(const std::string& kernelcachePath,
+                        const std::string& patchProfilePath,
+                        const std::string& patchOutPath,
+                        bool allowMutation) {
+    primitives::ExecutionContext ctx;
+    ctx.deviceState = DeviceState::Unknown;
+    ctx.kernelcachePath = kernelcachePath;
+    ctx.patchProfilePath = patchProfilePath;
+    ctx.patchOutPath = patchOutPath;
+    ctx.allowMutation = allowMutation;
+
+    const primitives::PrimitiveResult findResult = primitives::runHostPatchfind(ctx);
+    if (findResult != primitives::PrimitiveResult::Success) {
+        return false;
+    }
+    if (patchProfilePath.empty()) {
+        return true;
+    }
+    return primitives::runHostPatchApply(ctx) == primitives::PrimitiveResult::Success;
+}
+
+bool runDfuJailbreak(DeviceManager& manager, const Gen0Options& options, bool executeBootrom) {
+    if (manager.detectDeviceState() != DeviceState::DFU) {
+        Logger::error("DFU workflow requires a device in DFU mode.");
+        return false;
+    }
+
+    auto device = manager.getDFUDevice();
+    if (!device) {
+        Logger::error("Failed to open DFU device.");
+        return false;
+    }
+
+    primitives::DfuTransport transport(*device);
+    primitives::ExecutionContext ctx =
+        buildExecutionContext(DeviceState::DFU, options, "", 0, executeBootrom);
+    ctx.transport = &transport;
+    try {
+        ctx.cpid = Checkm8::parseCpidFromSerial(device->getSerialNumber());
+    } catch (const std::exception&) {
+        /* optional */
+    }
+    ctx.jailbreakGeneration = detectJailbreakGeneration(ctx);
+
+    primitives::ChainRunner runner;
+    runner.runProbeChain(ctx);
+    if (!options.reportPath.empty()) {
+        if (runner.writeReportToFile(options.reportPath)) {
+            Logger::info("Wrote chain report: " + options.reportPath);
+        } else {
+            Logger::warn("Failed to write chain report: " + options.reportPath);
+        }
+    }
+
+    if (!executeBootrom) {
+        Logger::info("DFU probe complete — use -m, --dfu-jailbreak, or -j --jailbreak-execute.");
+        return true;
+    }
+
+    device.reset();
+
+    const BootromExploitResult pwn = BootromExploitRegistry::instance().runForDevice(manager);
+    if (pwn != BootromExploitResult::Success && pwn != BootromExploitResult::AlreadyPwned) {
+        Logger::error("Bootrom exploit failed: " + BootromExploit::resultToString(pwn));
+        return false;
+    }
+    Logger::info("Bootrom stage complete (" + BootromExploit::resultToString(pwn) + ")");
+
+    const bool runPongo =
+        options.pongo.bootRun || options.pongo.execute || options.jailbreakExecute;
+    if (!runPongo) {
+        Logger::info("Next: --pongo-execute with --pongo-kpf and --pongo-ramdisk (or --ipsw).");
+        return true;
+    }
+
+    if (!primitives::exploitPluginsEnabled()) {
+        Logger::error("Pongo boot requires make plugins.");
+        return false;
+    }
+
+    Gen0Options pongoOpts = options;
+    pongoOpts.pongo.bootRun = true;
+    return runPongoBoot(pongoOpts, true);
 }
 
 } /* namespace PP */

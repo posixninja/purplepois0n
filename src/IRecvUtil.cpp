@@ -6,6 +6,7 @@
 #include "Checkm8.h"
 
 #include <unistd.h>
+#include <vector>
 
 namespace PP {
 namespace irecv_util {
@@ -120,6 +121,47 @@ uint64_t probeRecoveryEcid() {
 
     irecv_close(client);
     return ecid;
+}
+
+bool getCommandReturn(irecv_client_t client, uint32_t* returnCode) {
+    if (client == nullptr || returnCode == nullptr) {
+        return false;
+    }
+    const irecv_error_t err = irecv_getret(client, returnCode);
+    return err == IRECV_E_SUCCESS;
+}
+
+IRecvCommandResult sendCommandWithResponse(irecv_client_t client,
+                                           const std::string& command,
+                                           const uint64_t recvLength) {
+    IRecvCommandResult result;
+    if (client == nullptr) {
+        result.error = "null client";
+        return result;
+    }
+    if (irecv_send_command(client, command.c_str()) != IRECV_E_SUCCESS) {
+        result.error = "send_command failed";
+        return result;
+    }
+    if (!getCommandReturn(client, &result.returnCode)) {
+        result.error = "getret failed";
+        return result;
+    }
+    if (recvLength > 0) {
+        if (recvLength > 0xFFFFu) {
+            result.error = "recv length exceeds USB limit";
+            return result;
+        }
+        result.buffer.resize(recvLength);
+        if (irecv_recv_buffer(client, reinterpret_cast<char*>(result.buffer.data()), recvLength) !=
+            IRECV_E_SUCCESS) {
+            result.error = "recv_buffer failed";
+            result.buffer.clear();
+            return result;
+        }
+    }
+    result.success = true;
+    return result;
 }
 
 } /* namespace irecv_util */

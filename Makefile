@@ -37,6 +37,8 @@ BIN_DIR = $(BUILD_DIR)/bin
 SOURCES = $(wildcard $(SRC_DIR)/*.cpp) \
           $(wildcard $(SRC_DIR)/pongo/*.cpp) \
           $(wildcard $(SRC_DIR)/primitives/*.cpp) \
+          $(wildcard $(SRC_DIR)/store/*.cpp) \
+          $(wildcard $(SRC_DIR)/devicetree/*.cpp) \
           $(wildcard $(SRC_DIR)/primitives/historical/*.cpp) \
           $(wildcard $(SRC_DIR)/primitives/pongo/*.cpp)
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
@@ -157,6 +159,8 @@ help:
 	@echo "  install  - Install to /usr/local/bin"
 	@echo "  uninstall- Remove from /usr/local/bin"
 	@echo "  plugins  - Build with PURPLEPOIS0N_ENABLE_EXPLOIT_PLUGINS"
+	@echo "  kpf      - Build kpf-purple Pongo module (legacy/scripts/kpf-build.sh all)"
+	@echo "  smoke-kpf / smoke-dtree-mmio / smoke-dfu-jailbreak / smoke-medicine - Offline smoke tests"
 	@echo "  LIBTATSU=1 - Link libtatsu for in-tree live TSS (brew install libtatsu)"
 	@echo "  LIBUSB=1   - Link libusb for PongoOS USB (brew install libusb)"
 	@echo "  submodules   - git submodule update --init external/ipsw"
@@ -165,6 +169,7 @@ help:
 	@echo "  external-ipswd - build ipswd daemon in external/ipsw (requires Go)"
 	@echo "  test-fixtures - offline backup/Mach-O smoke (tests/run_fixtures.sh)"
 	@echo "  smoke-tss     - host TSS + chain report smoke (tests/smoke_tss.sh)"
+	@echo "  smoke-host-patch - offline kernelcache patchfind smoke"
 	@echo "  help     - Show this help message"
 	@echo ""
 	@echo "Architecture variables (macOS):"
@@ -199,4 +204,56 @@ smoke-tss: $(TARGET)
 	@chmod +x tests/smoke_tss.sh tests/assert_chain_report.sh 2>/dev/null || true
 	@tests/smoke_tss.sh
 
-.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss
+smoke-host-patch: $(TARGET)
+	@chmod +x tests/smoke_host_patch.sh 2>/dev/null || true
+	@tests/smoke_host_patch.sh
+
+kpf:
+	@chmod +x legacy/scripts/kpf-build.sh 2>/dev/null || true
+	@legacy/scripts/kpf-build.sh all
+
+smoke-kpf:
+	@chmod +x tests/smoke_kpf_test.sh 2>/dev/null || true
+	@tests/smoke_kpf_test.sh
+
+smoke-dtree-mmio: $(TARGET)
+	@chmod +x tests/smoke_dtree_mmio.sh 2>/dev/null || true
+	@tests/smoke_dtree_mmio.sh
+
+smoke-dfu-jailbreak: plugins
+	@chmod +x tests/smoke_dfu_jailbreak.sh 2>/dev/null || true
+	@tests/smoke_dfu_jailbreak.sh
+
+smoke-medicine: $(TARGET)
+	@chmod +x tests/smoke_medicine.sh 2>/dev/null || true
+	@tests/smoke_medicine.sh
+
+smoke-dpkg-store: $(TARGET)
+	@chmod +x tests/smoke_dpkg_store.sh 2>/dev/null || true
+	@tests/smoke_dpkg_store.sh
+
+smoke-doctor: $(TARGET)
+	@chmod +x tests/smoke_doctor.sh doctors/doctor_gui.py doctors/macos/run-doctor.command doctors/linux/run-doctor.sh 2>/dev/null || true
+	@tests/smoke_doctor.sh
+
+web-install:
+	cd ui/web && npm install
+
+web-dev:
+	cd ui/web && npm run dev
+
+web-build:
+	cd ui/web && npm ci && npm run build
+
+agent:
+	@chmod +x ui/agent/purple_agent.py
+	python3 ui/agent/purple_agent.py
+
+smoke-web:
+	cd ui/web && npm ci && npm run build
+
+smoke-agent: $(TARGET)
+	@chmod +x tests/smoke_agent.sh ui/agent/purple_agent.py 2>/dev/null || true
+	@tests/smoke_agent.sh
+
+.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss smoke-host-patch kpf smoke-kpf smoke-dtree-mmio smoke-dfu-jailbreak smoke-medicine smoke-dpkg-store smoke-doctor web-install web-dev web-build agent smoke-web smoke-agent

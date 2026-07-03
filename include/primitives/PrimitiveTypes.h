@@ -36,6 +36,7 @@ enum class PrimitiveCategory {
     Kernel,
     PacBypass,
     PplBypass,
+    PageMonitor,
     Patchfinding,
     PhysRw,
     Privilege,
@@ -78,6 +79,7 @@ enum class ChainStage {
     KernelExploit,
     PacBypass,
     PplBypass,
+    PageMonitor,
     PhysRw,
     Privilege,
     TrustCache,
@@ -129,6 +131,12 @@ struct ExecutionContext {
     std::string ipaInstallPath;
     /** Mach-O to add to on-device trust cache after jailbreak (optional). */
     std::string trustCachePath;
+    /** Host kernelcache for offline patchfind/patch (optional). */
+    std::string kernelcachePath;
+    /** JSON patch profile (offset + bytes); no bundled tables in-tree. */
+    std::string patchProfilePath;
+    /** Output path for patched kernelcache. */
+    std::string patchOutPath;
     /** Recovery multi-stage boot components (iBSS / iBEC / rdsk). */
     struct RecoveryChainComponent {
         std::string fourcc;
@@ -157,6 +165,15 @@ struct ExecutionContext {
     std::string pongoKpfPath;
     std::string pongoRamdiskDmgPath;
     std::string pongoXargsLine;
+    /** Auto-run PAC/MIE bypass delegate (badRecovery) when plugins enabled. */
+    bool bypassIntegrityRun = false;
+    /** Post-install medicine cures (Chronic-Dev medicine: afc2, capable, hacktivation helpers). */
+    bool medicineRun = false;
+    bool medicineApply = false;
+    std::string medicineCures;
+    std::string medicinePlatform;
+    std::string medicineCapability;
+    std::string medicineAppPath;
 };
 
 /** Returns true when built with PURPLEPOIS0N_ENABLE_EXPLOIT_PLUGINS. */
