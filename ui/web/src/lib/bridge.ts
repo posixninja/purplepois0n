@@ -6,6 +6,12 @@ export interface AgentCapabilities {
   doctor?: boolean;
   store?: boolean;
   normalSsh?: boolean;
+  kpf?: {
+    built?: boolean;
+    moduleBuilt?: boolean;
+    testBuilt?: boolean;
+    module?: string;
+  };
 }
 
 export interface AgentHealth {
@@ -76,6 +82,53 @@ async function streamNdjson(
   return success;
 }
 
+export interface DevicePlanDevice {
+  state: string;
+  cpid?: string;
+  ecid?: string;
+  soc?: string;
+  productType?: string;
+  iosVersion?: string;
+  udid?: string;
+  era?: string;
+  checkm8?: boolean;
+  usbliter8?: boolean;
+}
+
+export interface DevicePlanPayload {
+  strategy: string;
+  summary: string;
+  bootLane?: string;
+  canProbe?: boolean;
+  canExecute?: boolean;
+  useBootromExploit?: boolean;
+  useBootDelivery?: boolean;
+  useExternalDelegate?: boolean;
+  useEraChain?: boolean;
+  useRecoveryChain?: boolean;
+  alreadyJailbroken?: boolean;
+  bootModule?: string;
+  ipsw?: string;
+  ramdiskSource?: string;
+  blockers?: string[];
+}
+
+export interface DevicePlan {
+  device: DevicePlanDevice;
+  plan: DevicePlanPayload;
+  error?: string;
+}
+
+export async function fetchDevicePlan(udid?: string): Promise<DevicePlan> {
+  const q = udid ? `?udid=${encodeURIComponent(udid)}` : "";
+  const res = await fetch(`${AGENT_BASE}/device/plan${q}`);
+  const data = (await res.json()) as DevicePlan;
+  if (!res.ok) {
+    throw new Error(data.error ?? `device plan failed: ${res.status}`);
+  }
+  return data;
+}
+
 export async function agentHealth(): Promise<AgentHealth | null> {
   try {
     const res = await fetch(`${AGENT_BASE}/health`, { signal: AbortSignal.timeout(2000) });
@@ -95,12 +148,43 @@ export async function runDoctor(
 }
 
 export async function runJailbreak(
-  opts: { mode?: string; udid?: string },
+  opts: {
+    mode?: string;
+    udid?: string;
+    alreadyJailbroken?: boolean;
+    postJbStore?: boolean;
+    auto?: boolean;
+    execute?: boolean;
+  },
   onEvent: (e: AgentEvent) => void,
 ): Promise<boolean> {
   return streamNdjson(
     "/jailbreak",
-    { mode: opts.mode ?? "", udid: opts.udid ?? "" },
+    {
+      mode: opts.mode ?? "",
+      udid: opts.udid ?? "",
+      already_jailbroken: !!opts.alreadyJailbroken,
+      post_jb_store: !!opts.postJbStore,
+      auto: !!opts.auto,
+      execute: !!opts.execute,
+      i_understand_jailbreak: !!opts.execute,
+    },
+    onEvent,
+  );
+}
+
+
+export async function runExternalJailbreak(
+  opts: { udid?: string; alreadyJailbroken?: boolean; postJbStore?: boolean },
+  onEvent: (e: AgentEvent) => void,
+): Promise<boolean> {
+  return streamNdjson(
+    "/external-jailbreak",
+    {
+      udid: opts.udid ?? "",
+      already_jailbroken: !!opts.alreadyJailbroken,
+      post_jb_store: !!opts.postJbStore,
+    },
     onEvent,
   );
 }
@@ -126,11 +210,15 @@ export async function listDevices(): Promise<AgentDevice[]> {
   return data.devices ?? [];
 }
 
-export async function storeSync(udid: string, storeRoot?: string): Promise<string> {
+export async function storeSync(
+  udid: string,
+  storeRoot?: string,
+  syncMode = "file",
+): Promise<string> {
   const res = await fetch(`${AGENT_BASE}/store/sync`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ udid, storeRoot: storeRoot ?? "" }),
+    body: JSON.stringify({ udid, storeRoot: storeRoot ?? "", syncMode }),
   });
   const data = (await res.json()) as { ok?: boolean; detail?: string; error?: string };
   if (!res.ok || !data.ok) {
@@ -177,4 +265,14 @@ export async function fetchStorePackages(storeRoot?: string): Promise<string> {
   const res = await fetch(`${AGENT_BASE}/store/packages${q}`);
   if (!res.ok) throw new Error(await res.text());
   return res.text();
+}
+
+export async function fetchStoreInstalled(udid: string): Promise<string[]> {
+  const q = `?udid=${encodeURIComponent(udid)}`;
+  const res = await fetch(`${AGENT_BASE}/store/installed${q}`);
+  const data = (await res.json()) as { packages?: string[]; error?: string };
+  if (!res.ok) {
+    throw new Error(data.error ?? `installed probe failed: ${res.status}`);
+  }
+  return data.packages ?? [];
 }

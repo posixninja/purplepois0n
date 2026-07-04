@@ -2,6 +2,8 @@
 
 Host-side custom HFS+ ramdisk creation without `hdiutil attach` or anthrax `template.dmg`. Artifacts are assembled in memory and written to disk at each stage.
 
+**MVP integration:** The planner auto-resolves ramdisk from `PURPLEPOIS0N_IPSW` or `PURPLEPOIS0N_RAMDISK`; boot delivery is lane-agnostic. See [MVP.md](../../MVP.md).
+
 ## Phase A — In-memory HFS+ builder
 
 | Module | Role |
@@ -69,6 +71,21 @@ Environment:
 - Boot command (`go`) runs on `--recovery-execute` unless `PURPLEPOIS0N_RECOVERY_BOOT=0`
 - KPF / checkra1n jailbreak bootstrap — user-supplied KPF + optional `--pongo-boot` (separate from Recovery)
 - No in-tree armv6 `launchd`, AFC2, or exploit bytes
+
+## Generic boot delivery (lanes)
+
+Ramdisk upload and optional post-loader modules (KPF today; other payloads later) are **independent**. A ramdisk artifact does not imply any particular exploit or boot module.
+
+| Flag | Purpose |
+|------|---------|
+| `--ramdisk PATH` | Boot artifact only (`.dmg` raw HFS+ or `.im4p` signed rdsk) |
+| `--boot-lane LANE` | `auto`, `recovery`, `usb-loader`, `post-exploit`, `live-agent` |
+| `--boot-module PATH` | Optional post-loader blob (required for `usb-loader` today) |
+| `--boot-args LINE` | Optional kernel boot-args (transport default when omitted) |
+
+Core resolver: `resolveBootDelivery()` / `resolveRamdiskArtifactPath()` in `RamdiskDelivery.cpp`. Lane dispatch: `runBootDeliveryChain()` → `usb-loader-boot-chain`, `recovery-boot-chain`, or `ramdisk-shell`.
+
+Legacy `--pongo-*` flags remain aliases for the `usb-loader` lane. Pongo-specific USB protocol code lives in `PongoDevice.cpp` only.
 
 ## Pongo vs Recovery
 

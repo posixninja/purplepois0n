@@ -13,6 +13,11 @@ namespace PP {
 
 class DeviceManager;
 
+/** Emit JSON device profile + jailbreak plan (probe-only; for agent/AI). */
+bool runDevicePlanScan(DeviceManager& manager,
+                       const std::string& targetUDID,
+                       std::string* jsonOut);
+
 /** Run the doctors orchestration path with JSON step events on stdout. */
 bool runDoctorFlow(DeviceManager& manager,
                    const std::string& targetUDID,

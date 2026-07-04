@@ -48,6 +48,11 @@ struct CliParsedOptions {
     std::string ramdiskDownloadRemote;
     std::string ramdiskDownloadLocal;
     std::string ramdiskListPath;
+    std::string ramdiskPath;
+    std::string bootLaneStr;
+    std::string ramdiskFormatStr;
+    std::string bootModulePath;
+    std::string bootArgsLine;
     bool recoveryChainFlag = false;
     bool recoveryExecuteFlag = false;
     bool pongoProbeFlag = false;
@@ -61,6 +66,7 @@ struct CliParsedOptions {
     bool postJbStoreFlag = false;
     std::string postJbStoreInstallPkg;
     std::string storeRoot;
+    std::string storeSyncMode = "file";
     bool medicineProbeFlag = false;
     bool medicineApplyFlag = false;
     std::string medicineCures;
@@ -72,6 +78,8 @@ struct CliParsedOptions {
     bool jailbreakExecuteFlag = false;
     bool bypassIntegrityFlag = false;
     bool understandJailbreakFlag = false;
+    bool externalJailbreakFlag = false;
+    bool externalSkipHelperFlag = false;
     std::string kernelcachePath;
     std::string patchProfilePath;
     std::string patchOutPath;

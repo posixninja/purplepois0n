@@ -7,9 +7,11 @@
 #include "Checkm8.h"
 #include "DeviceManager.h"
 #include "DoctorReporter.h"
+#include "JailbreakPlanner.h"
 #include "Logger.h"
 #include "Syringe.h"
 
+#include <iostream>
 #include <sstream>
 #include <iomanip>
 
@@ -68,9 +70,25 @@ bool syringeIdentify(Syringe& syringe, uint32_t& cpid, uint64_t& ecid) {
 
 } /* namespace */
 
+bool runDevicePlanScan(DeviceManager& manager,
+                       const std::string& targetUDID,
+                       std::string* jsonOut) {
+    DeviceProfile profile;
+    if (!buildDeviceProfile(manager, targetUDID, &profile)) {
+        return false;
+    }
+    const HostCapabilities host = probeHostCapabilities();
+    const JailbreakPlan plan = planJailbreak(profile, host);
+    if (jsonOut != nullptr) {
+        *jsonOut = jailbreakPlanToJson(profile, plan);
+    }
+    return true;
+}
+
 bool runDoctorFlow(DeviceManager& manager,
                    const std::string& targetUDID,
-                   const Gen0Options& options) {
+                   const Gen0Options& baseOptions) {
+    Gen0Options options = baseOptions;
     auto& reporter = DoctorReporter::instance();
     reporter.setEnabled(true);
 
@@ -106,10 +124,48 @@ bool runDoctorFlow(DeviceManager& manager,
                               std::to_string(ecid),
                           0);
 
-    reporter.stepRequest("jailbreak", "Starting jailbreak");
+    reporter.stepRequest("plan", "Selecting jailbreak strategy for this device");
+    DeviceProfile profile;
+    if (!buildDeviceProfile(manager, targetUDID, &profile)) {
+        reporter.stepResponse("plan", false, "Could not build device profile", 1);
+        reporter.complete(false, "Device profile failed");
+        return false;
+    }
+    const HostCapabilities host = probeHostCapabilities();
+    const JailbreakPlan plan = planJailbreak(profile, host);
+    reporter.stepResponse("plan", plan.canProbe || plan.canExecute, plan.summary, 0);
+    std::cout << jailbreakPlanToJson(profile, plan) << std::endl;
+
+    const bool userWantsExecute = options.jailbreakExecute;
+    mergePlanIntoOptions(&options, plan);
+    if (!targetUDID.empty() && options.ramdisk.connect.udid.empty()) {
+        options.ramdisk.connect.udid = targetUDID;
+    }
+    if (userWantsExecute) {
+        options.jailbreakExecute = true;
+        if (plan.useRecoveryChain) {
+            options.recovery.execute = true;
+        }
+    }
+
+    if (options.jailbreakExecute && !plan.canExecute) {
+        std::string blockers = plan.blockers.empty() ? "plan not executable" : plan.blockers[0];
+        reporter.stepResponse("jailbreak", false, blockers, 1);
+        reporter.complete(false, blockers);
+        return false;
+    }
+
+    if (!options.jailbreakExecute) {
+        reporter.complete(true, "Plan ready");
+        return true;
+    }
+
+    reporter.stepRequest("jailbreak", "Running " + plan.strategyId);
     bool ok = false;
-    if (state == DeviceState::DFU) {
+    if (profile.state == DeviceState::DFU) {
         ok = runDfuJailbreak(manager, options, options.jailbreakExecute);
+    } else if (plan.useExternalDelegate) {
+        ok = runExternalJailbreak(manager, targetUDID, options);
     } else {
         ok = runGen0Jailbreak(manager, targetUDID, options);
     }

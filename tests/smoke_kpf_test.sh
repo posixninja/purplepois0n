@@ -99,4 +99,11 @@ if [[ -f "${MODULE}" ]]; then
   echo "OK: Pongo module at ${MODULE}"
 fi
 
+CAPS="$("${ROOT}/build/bin/purplepois0n" --capabilities 2>/dev/null || true)"
+if [[ -n "${CAPS}" ]]; then
+  echo "${CAPS}" | grep -q '"kpf"' || { echo "capabilities missing kpf" >&2; exit 1; }
+  echo "${CAPS}" | grep -q '"moduleBuilt":true' || { echo "capabilities kpf.moduleBuilt false" >&2; exit 1; }
+  echo "OK: --capabilities reports built KPF"
+fi
+
 echo "OK: kpf-purple smoke passed."

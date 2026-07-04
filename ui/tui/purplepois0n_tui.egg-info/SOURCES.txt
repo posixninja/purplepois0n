@@ -1,0 +1,11 @@
+pyproject.toml
+purplepois0n_tui/__init__.py
+purplepois0n_tui/__main__.py
+purplepois0n_tui/api_client.py
+purplepois0n_tui/app.py
+purplepois0n_tui.egg-info/PKG-INFO
+purplepois0n_tui.egg-info/SOURCES.txt
+purplepois0n_tui.egg-info/dependency_links.txt
+purplepois0n_tui.egg-info/entry_points.txt
+purplepois0n_tui.egg-info/requires.txt
+purplepois0n_tui.egg-info/top_level.txt

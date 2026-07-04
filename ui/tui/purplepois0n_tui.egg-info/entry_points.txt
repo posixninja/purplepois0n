@@ -1,0 +1,2 @@
+[console_scripts]
+purplepois0n-tui = purplepois0n_tui.__main__:main

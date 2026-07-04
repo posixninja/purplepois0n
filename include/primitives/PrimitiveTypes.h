@@ -158,13 +158,22 @@ struct ExecutionContext {
     std::string ramdiskDownloadRemote;
     std::string ramdiskDownloadLocal;
     std::string ramdiskListPath;
-    /** PongoOS (checkra1n DFU path) — USB 05ac:4141, separate from Recovery. */
+    /** Lane-agnostic boot delivery (ramdisk artifact independent of boot module). */
+    bool bootDeliveryRun = false;
+    bool bootDeliveryProbe = false;
+    /** PongoOS (checkra1n DFU path) — legacy aliases for usb-loader lane. */
     bool pongoProbeRun = false;
     bool pongoBootRun = false;
     bool pongoSpawnCheckra1n = false;
     std::string pongoKpfPath;
     std::string pongoRamdiskDmgPath;
     std::string pongoXargsLine;
+    /** Generic boot delivery (lane-agnostic; pongo-* fields remain aliases). */
+    std::string ramdiskArtifactPath;
+    RamdiskArtifactFormat ramdiskArtifactFormat = RamdiskArtifactFormat::Auto;
+    BootDeliveryLane bootDeliveryLane = BootDeliveryLane::Auto;
+    std::string bootModulePath;
+    std::string bootArgsLine;
     /** Auto-run PAC/MIE bypass delegate (badRecovery) when plugins enabled. */
     bool bypassIntegrityRun = false;
     /** Post-install medicine cures (Chronic-Dev medicine: afc2, capable, hacktivation helpers). */

@@ -76,8 +76,17 @@ StorePublishResult publishRepository(const std::string& storeRoot, const std::st
 /** Apt suite name (dists subdirectory). */
 const char* repositorySuite();
 
-/** One line for /var/jb/etc/apt/sources.list.d/purplepois0n.list */
+/** One line for /var/jb/etc/apt/sources.list.d/purplepois0n.list (file:// device mirror). */
 std::string aptSourceLine(const std::string& jbroot = std::string());
+
+/** Canonical HTTPS repo URL from PURPLEPOIS0N_REPO_URL (trailing slash normalized). */
+std::string resolveRepoUrl();
+
+/** Apt source line for HTTPS prod repo (uses resolveRepoUrl()). */
+std::string aptHttpsSourceLine();
+
+/** Markdown/nginx hosting hint aligned with deploy-https-repo.sh. */
+std::string hostingReadmeText(const std::string& publishRoot = std::string());
 
 std::vector<std::string> listDebPaths(const std::string& storeRoot);
 

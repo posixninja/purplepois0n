@@ -1,0 +1,18 @@
+Package: purplepois0n-smoke
+Version: 0.0.1
+Architecture: iphoneos-arm64
+Maintainer: purplepois0n
+Description: smoke test package for apt repo validation
+Filename: pool/main/p/purplepois0n-smoke/purplepois0n-smoke_0.0.1_iphoneos-arm64.deb
+Size: 538
+SHA256: 3b95c0788b028866bcad102523cb5dc4bbfd4fa1b89f17fa3d34ac8ced7581af
+
+Package: purplepois0n-zebra
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Maintainer: purplepois0n
+Description: purplepois0n default repo source and store launcher
+Filename: pool/main/p/purplepois0n-zebra/purplepois0n-zebra_1.0.0_iphoneos-arm64.deb
+Size: 790
+SHA256: 303b5da80d4b63b2cbf086642dfd373dd7cf51e7ac100db2d1671d98f1857790
+

@@ -16,6 +16,7 @@
 #include "primitives/TssTypes.h"
 #include "primitives/PrimitiveTypes.h"
 #include "RamdiskTypes.h"
+#include "store/DpkgStoreSync.h"
 
 namespace PP {
 
@@ -44,6 +45,14 @@ struct Gen0RamdiskOptions {
     std::string downloadRemote;
     std::string downloadLocal;
     std::string listPath;
+    /** Generic delivery artifact (--ramdisk); aliases legacy --pongo-ramdisk. */
+    std::string artifactPath;
+    BootDeliveryLane deliveryLane = BootDeliveryLane::Auto;
+    RamdiskArtifactFormat artifactFormat = RamdiskArtifactFormat::Auto;
+    std::string bootModulePath;
+    std::string bootArgsLine;
+    bool deliveryRun = false;
+    bool deliveryProbe = false;
 };
 
 struct Gen0PongoOptions {
@@ -95,6 +104,11 @@ struct Gen0Options {
     bool postJbStoreSync = false;
     std::string storeRoot;
     std::string postJbStoreInstallPkg;
+    store::StoreSyncMode storeSyncMode = store::StoreSyncMode::File;
+    /** Delegate jailbreak to palera1n/checkra1n wrapper (--external-jailbreak). */
+    bool externalJailbreak = false;
+    /** Skip external helper; probe /var/jb and run post-jb store only. */
+    bool externalSkipHelper = false;
 };
 
 bool runGen0Jailbreak(DeviceManager& manager,
@@ -186,9 +200,11 @@ bool runStoreInit(const std::string& storeRoot);
 bool runStoreBuild(const std::string& storeRoot);
 bool runStoreAdd(const std::string& storeRoot, const std::string& debPath);
 bool runStoreSync(const RamdiskConnectOptions& connect, const std::string& storeRoot,
-                  bool allowMutation);
+                  bool allowMutation,
+                  store::StoreSyncMode mode = store::StoreSyncMode::File);
 bool runStoreInstall(const RamdiskConnectOptions& connect, const std::string& packageName,
                      bool allowMutation);
+bool runStoreListInstalled(const RamdiskConnectOptions& connect, std::vector<std::string>* packages);
 
 bool runStorePublish(const std::string& storeRoot, const std::string& publishRoot);
 
@@ -225,6 +241,10 @@ bool runPongoBoot(const Gen0Options& options, bool allowMutation);
  * @p executeBootrom  When false, probe-only (same as default -j in DFU).
  */
 bool runDfuJailbreak(DeviceManager& manager, const Gen0Options& options, bool executeBootrom);
+
+bool runExternalJailbreak(DeviceManager& manager,
+                          const std::string& targetUDID,
+                          const Gen0Options& options);
 
 } /* namespace PP */
 

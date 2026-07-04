@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { agentHealth, fetchStorePackages } from "../lib/bridge";
+import { agentHealth, fetchStoreInstalled, fetchStorePackages } from "../lib/bridge";
 import {
   fetchPackagesFromUrl,
   normalizePackagesUrl,
@@ -17,6 +17,7 @@ export interface AptSource {
 
 interface StoreContextValue {
   packages: AptPackage[];
+  installedPackages: Set<string>;
   sources: AptSource[];
   activeSourceId: string | null;
   loading: boolean;
@@ -28,6 +29,7 @@ interface StoreContextValue {
   setActiveCategory: (c: string) => void;
   filteredPackages: AptPackage[];
   loadFromAgent: () => Promise<void>;
+  refreshInstalled: (udid: string) => Promise<void>;
   addSource: (url: string, label?: string) => Promise<void>;
   removeSource: (id: string) => void;
   selectSource: (id: string) => Promise<void>;
@@ -47,6 +49,7 @@ const DEFAULT_SOURCES: AptSource[] = [
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [packages, setPackages] = useState<AptPackage[]>([]);
+  const [installedPackages, setInstalledPackages] = useState<Set<string>>(new Set());
   const [sources, setSources] = useState<AptSource[]>(DEFAULT_SOURCES);
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +93,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const loadFromAgent = useCallback(async () => {
     await loadAgentSource();
   }, [loadAgentSource]);
+
+  const refreshInstalled = useCallback(async (udid: string) => {
+    if (!udid) return;
+    try {
+      const names = await fetchStoreInstalled(udid);
+      setInstalledPackages(new Set(names));
+    } catch {
+      setInstalledPackages(new Set());
+    }
+  }, []);
 
   const loadFromUrlSource = useCallback(async (source: AptSource): Promise<boolean> => {
     setLoading(true);
@@ -202,6 +215,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       packages,
+      installedPackages,
       sources,
       activeSourceId,
       loading,
@@ -213,12 +227,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveCategory,
       filteredPackages,
       loadFromAgent,
+      refreshInstalled,
       addSource,
       removeSource,
       selectSource,
     }),
     [
       packages,
+      installedPackages,
       sources,
       activeSourceId,
       loading,
@@ -228,6 +244,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       activeCategory,
       filteredPackages,
       loadFromAgent,
+      refreshInstalled,
       addSource,
       removeSource,
       selectSource,

@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="${ROOT}/build/bin/purplepois0n"
 STORE="${TMPDIR:-/tmp}/pp-dpkg-store-smoke-$$"
 PUBLISH="${TMPDIR:-/tmp}/pp-dpkg-store-publish-$$"
+DEB_DIR="$STORE/debs"
 
 cleanup() {
   rm -rf "$STORE" "$PUBLISH"
@@ -26,28 +27,40 @@ if command -v gzip >/dev/null 2>&1; then
   test -f "$STORE/dists/purplepois0n/main/binary-iphoneos-arm64/Packages.gz"
 fi
 
-if command -v dpkg-deb >/dev/null 2>&1; then
-  DEB_WORK="$STORE/deb-work"
-  mkdir -p "$DEB_WORK/DEBIAN"
-  cat >"$DEB_WORK/DEBIAN/control" <<EOF
-Package: purplepois0n-smoke
-Version: 0.0.1
-Architecture: iphoneos-arm64
-Maintainer: purplepois0n
-Description: smoke test package
-EOF
-  DEB_PATH="$STORE/purplepois0n-smoke_0.0.1_iphoneos-arm64.deb"
-  dpkg-deb -b "$DEB_WORK" "$DEB_PATH" >/dev/null
-  PURPLEPOIS0N_STORE_ROOT="$STORE" "$BIN" --store-add "$DEB_PATH" --store-root "$STORE"
-  grep -q '^Package: purplepois0n-smoke$' "$STORE/Packages"
-  grep -q 'pool/main/p/purplepois0n-smoke/' "$STORE/Packages"
-fi
+mkdir -p "$DEB_DIR"
+python3 "$ROOT/legacy/packages/build_debs.py" --out-dir "$DEB_DIR" --zebra-sources none >/dev/null
+for deb in "$DEB_DIR"/*.deb; do
+  [[ -f "$deb" ]] || continue
+  "$BIN" --store-add "$deb" --store-root "$STORE"
+done
+grep -q '^Package: purplepois0n-smoke$' "$STORE/Packages"
+grep -q 'pool/main/p/purplepois0n-smoke/' "$STORE/Packages"
+grep -q '^Package: purplepois0n-zebra$' "$STORE/Packages"
+! grep -q '^Package: purplepois0n-sources$' "$STORE/Packages" || {
+  echo "FAIL: dev build should not include purplepois0n-sources by default"
+  exit 1
+}
+
+HTTPS_DEB_DIR="${TMPDIR:-/tmp}/pp-dpkg-https-debs-$$"
+mkdir -p "$HTTPS_DEB_DIR"
+PURPLEPOIS0N_REPO_URL=https://cdn.example.com/purplepois0n-repo/ \
+  python3 "$ROOT/legacy/packages/build_debs.py" --out-dir "$HTTPS_DEB_DIR" --zebra-sources https >/dev/null
+test -f "$HTTPS_DEB_DIR/purplepois0n-sources_1.0.0_iphoneos-arm64.deb"
+rm -rf "$HTTPS_DEB_DIR"
 
 "$BIN" --store-publish "$PUBLISH" --store-root "$STORE"
 test -d "$PUBLISH/pool/main"
 test -f "$PUBLISH/dists/purplepois0n/Release"
 test -f "$PUBLISH/README-hosting.txt"
+grep -q 'location /purplepois0n-repo/' "$PUBLISH/README-hosting.txt"
+grep -q 'purplepois0n-repo/' "$PUBLISH/README-hosting.txt"
 
 PURPLEPOIS0N_STORE_ROOT="$STORE" "$BIN" --probe-primitive dpkg-store
+
+"$BIN" store build --store-root "$STORE" >/dev/null
+grep -q '^Package: purplepois0n-smoke$' "$STORE/Packages" || {
+  echo "FAIL: subcommand store build"
+  exit 1
+}
 
 echo "smoke_dpkg_store: OK"

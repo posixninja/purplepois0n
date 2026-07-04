@@ -63,7 +63,7 @@ PrimitiveResult DpkgStorePrimitive::execute(ExecutionContext& context) {
 
     const store::StoreSyncResult synced =
         store::syncStoreToDevice(RootlessDelegate::sshConnectOptions(context), storeRoot,
-                                 context.allowMutation);
+                                 context.allowMutation, store::StoreSyncMode::File);
     if (!synced.success) {
         Logger::error("  [Store] sync failed: " + synced.error);
         return PrimitiveResult::TransportError;

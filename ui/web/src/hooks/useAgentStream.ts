@@ -49,10 +49,23 @@ export function useAgentStream() {
     [append, onProgressEvent],
   );
 
+  const runAutoJailbreak = useCallback(
+    (udid?: string) =>
+      run("Scanning device and running jailbreak plan…", "Jailbreak flow complete.", (cb) =>
+        runJailbreak({ auto: true, execute: true, udid }, cb),
+      ),
+    [run],
+  );
+
   const runJailbreakFlow = useCallback(
-    (mode?: string, udid?: string) =>
-      run("Starting jailbreak…", "Jailbreak finished.", (cb) =>
-        runJailbreak({ mode, udid }, cb),
+    (_mode?: string, udid?: string) => runAutoJailbreak(udid),
+    [runAutoJailbreak],
+  );
+
+  const runAlreadyJailbrokenProbe = useCallback(
+    (udid?: string) =>
+      run("Verifying jailbreak…", "Device is jailbroken.", (cb) =>
+        runJailbreak({ auto: true, execute: true, udid }, cb),
       ),
     [run],
   );
@@ -68,7 +81,9 @@ export function useAgentStream() {
     running,
     append,
     clearLog: () => setLog([]),
+    runAutoJailbreak,
     runJailbreak: runJailbreakFlow,
+    runAlreadyJailbrokenProbe,
     runTestConnection,
   };
 }

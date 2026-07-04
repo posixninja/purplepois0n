@@ -35,6 +35,7 @@ BIN_DIR = $(BUILD_DIR)/bin
 
 # Source files
 SOURCES = $(wildcard $(SRC_DIR)/*.cpp) \
+          $(wildcard $(SRC_DIR)/cli/*.cpp) \
           $(wildcard $(SRC_DIR)/pongo/*.cpp) \
           $(wildcard $(SRC_DIR)/primitives/*.cpp) \
           $(wildcard $(SRC_DIR)/store/*.cpp) \
@@ -160,7 +161,13 @@ help:
 	@echo "  uninstall- Remove from /usr/local/bin"
 	@echo "  plugins  - Build with PURPLEPOIS0N_ENABLE_EXPLOIT_PLUGINS"
 	@echo "  kpf      - Build kpf-purple Pongo module (legacy/scripts/kpf-build.sh all)"
-	@echo "  smoke-kpf / smoke-dtree-mmio / smoke-dfu-jailbreak / smoke-medicine - Offline smoke tests"
+	@echo "  smoke-kpf / smoke-kpf-data-only - Offline KPF patchfinder tests"
+	@echo "  smoke-device-plan - --device-plan flag + JSON contract"
+	@echo "  smoke-capabilities - --capabilities JSON contract"
+	@echo "  smoke-mvp         - all offline MVP smokes + web build"
+	@echo "  smoke-mvp-strict  - smoke-mvp + capabilities + rootless + test-fixtures"
+	@echo "  smoke-e2e-delegate - hardware: already-jb store sync (needs UDID)"
+	@echo "  smoke-doctor / smoke-agent - Doctor + localhost agent"
 	@echo "  LIBTATSU=1 - Link libtatsu for in-tree live TSS (brew install libtatsu)"
 	@echo "  LIBUSB=1   - Link libusb for PongoOS USB (brew install libusb)"
 	@echo "  submodules   - git submodule update --init external/ipsw"
@@ -216,6 +223,10 @@ smoke-kpf:
 	@chmod +x tests/smoke_kpf_test.sh 2>/dev/null || true
 	@tests/smoke_kpf_test.sh
 
+smoke-kpf-data-only:
+	@chmod +x tests/smoke_kpf_data_only.sh 2>/dev/null || true
+	@tests/smoke_kpf_data_only.sh
+
 smoke-dtree-mmio: $(TARGET)
 	@chmod +x tests/smoke_dtree_mmio.sh 2>/dev/null || true
 	@tests/smoke_dtree_mmio.sh
@@ -235,6 +246,27 @@ smoke-dpkg-store: $(TARGET)
 smoke-doctor: $(TARGET)
 	@chmod +x tests/smoke_doctor.sh doctors/doctor_gui.py doctors/macos/run-doctor.command doctors/linux/run-doctor.sh 2>/dev/null || true
 	@tests/smoke_doctor.sh
+
+smoke-device-plan: $(TARGET)
+	@chmod +x tests/smoke_device_plan.sh 2>/dev/null || true
+	@tests/smoke_device_plan.sh
+
+smoke-capabilities: $(TARGET)
+	@chmod +x tests/smoke_capabilities.sh 2>/dev/null || true
+	@tests/smoke_capabilities.sh
+
+smoke-rootless-layout: $(TARGET)
+	@chmod +x tests/smoke_rootless_layout.sh 2>/dev/null || true
+	@tests/smoke_rootless_layout.sh
+
+smoke-mvp: release
+	@$(MAKE) smoke-kpf smoke-dfu-jailbreak smoke-dpkg-store smoke-doctor smoke-device-plan smoke-agent
+	@$(MAKE) web-build
+	@echo "smoke-mvp: all offline MVP checks passed"
+
+smoke-mvp-strict: smoke-mvp
+	@$(MAKE) smoke-capabilities smoke-rootless-layout test-fixtures
+	@echo "smoke-mvp-strict: extended offline checks passed"
 
 web-install:
 	cd ui/web && npm install
@@ -256,4 +288,21 @@ smoke-agent: $(TARGET)
 	@chmod +x tests/smoke_agent.sh ui/agent/purple_agent.py 2>/dev/null || true
 	@tests/smoke_agent.sh
 
-.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss smoke-host-patch kpf smoke-kpf smoke-dtree-mmio smoke-dfu-jailbreak smoke-medicine smoke-dpkg-store smoke-doctor web-install web-dev web-build agent smoke-web smoke-agent
+seed-store: $(TARGET)
+	@chmod +x legacy/scripts/seed-store.sh legacy/packages/build-debs.py 2>/dev/null || true
+	@legacy/scripts/seed-store.sh
+
+smoke-e2e-delegate:
+	bash tests/smoke_e2e_delegate.sh
+
+smoke-store-device: $(TARGET)
+	@chmod +x tests/smoke_store_device.sh 2>/dev/null || true
+	@tests/smoke_store_device.sh
+
+tui-install:
+	cd ui/tui && python3 -m venv .venv && .venv/bin/pip install -e . -q
+
+tui: tui-install
+	@cd ui/tui && .venv/bin/python -m purplepois0n_tui
+
+.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss smoke-host-patch kpf smoke-kpf smoke-kpf-data-only smoke-dtree-mmio smoke-dfu-jailbreak smoke-medicine smoke-dpkg-store smoke-doctor smoke-device-plan smoke-capabilities smoke-rootless-layout smoke-mvp smoke-mvp-strict web-install web-dev web-build agent smoke-web smoke-agent seed-store smoke-store-device smoke-e2e-delegate tui-install tui

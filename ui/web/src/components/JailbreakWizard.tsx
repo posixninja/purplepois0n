@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { identityFromAgent, useDevice } from "../context/DeviceContext";
 import { useStore } from "../context/StoreContext";
-import { storeSync } from "../lib/bridge";
+import { fetchDevicePlan, storeInstall, storeSync, type DevicePlan } from "../lib/bridge";
 import { useAgentStream } from "../hooks/useAgentStream";
 import { useWebUsbDevice } from "../hooks/useWebUsbDevice";
 import { ConsentGate } from "./ConsentGate";
@@ -12,10 +12,59 @@ import { StepLog } from "./StepLog";
 import { CopyButton } from "./CopyButton";
 import { WIZARD_STEPS } from "./wizardSteps";
 
+function PlanSummary({ plan, loading, error }: { plan: DevicePlan | null; loading: boolean; error: string | null }) {
+  if (loading) {
+    return <p className="muted">Scanning device and selecting strategy…</p>;
+  }
+  if (error) {
+    return <p className="warn-text">{error}</p>;
+  }
+  if (!plan) {
+    return <p className="muted">Connect a device to see the recommended jailbreak path.</p>;
+  }
+
+  const blockers = plan.plan.blockers ?? [];
+
+  return (
+    <div className="plan-card">
+      <h3>Recommended path</h3>
+      <p className="plan-strategy">
+        <code>{plan.plan.strategy}</code>
+      </p>
+      <p>{plan.plan.summary}</p>
+      <ul className="plan-meta">
+        {plan.device.soc && <li>SoC: {plan.device.soc}</li>}
+        {plan.device.iosVersion && <li>iOS {plan.device.iosVersion}</li>}
+        {plan.device.state && <li>Mode: {plan.device.state}</li>}
+        {plan.plan.bootLane && plan.plan.bootLane !== "auto" && <li>Boot lane: {plan.plan.bootLane}</li>}
+        {plan.plan.ramdiskSource && <li>Ramdisk: {plan.plan.ramdiskSource}</li>}
+        {plan.plan.ipsw && (
+          <li>
+            IPSW: <code className="mono">{plan.plan.ipsw}</code>
+          </li>
+        )}
+      </ul>
+      {blockers.length > 0 && (
+        <ul className="plan-blockers warn-text">
+          {blockers.map((b) => (
+            <li key={b}>{b}</li>
+          ))}
+        </ul>
+      )}
+      {plan.plan.canExecute ? (
+        <p className="ok-text">Ready to execute on this device.</p>
+      ) : (
+        <p className="warn-text">Fix blockers above before jailbreaking.</p>
+      )}
+    </div>
+  );
+}
+
 export function JailbreakWizard() {
   const {
     agentOk,
     pluginsEnabled,
+    kpfBuilt,
     webUsbAvailable,
     identity,
     agentDevices,
@@ -23,15 +72,23 @@ export function JailbreakWizard() {
     setSelectedUdid,
     refreshAgent,
   } = useDevice();
-  const { loadFromAgent } = useStore();
+  const { loadFromAgent, packages } = useStore();
   const usb = useWebUsbDevice();
   const agent = useAgentStream();
   const [step, setStep] = useState(0);
   const [dfuStep, setDfuStep] = useState(0);
   const [log, setLog] = useState<string[]>([]);
   const [postJbBusy, setPostJbBusy] = useState(false);
+  const [devicePlan, setDevicePlan] = useState<DevicePlan | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   const append = (line: string) => setLog((p) => [...p, line]);
+
+  const jailbreakUdid = selectedUdid ?? identity?.udid;
+  const alreadyJailbroken = devicePlan?.plan.alreadyJailbroken === true;
+  const canExecutePlan = devicePlan?.plan.canExecute === true;
+  const needsRecoveryGuide = identity && (identity.mode === "dfu" || identity.mode === "unknown");
 
   useEffect(() => {
     usb.loadGranted();
@@ -42,8 +99,40 @@ export function JailbreakWizard() {
     if (identity && step < 3) setStep(3);
   }, [identity, step]);
 
-  const needsRecoveryGuide = identity && (identity.mode === "dfu" || identity.mode === "unknown");
-  const jailbreakUdid = selectedUdid ?? identity?.udid;
+  useEffect(() => {
+    if (step === 5 && agentOk) {
+      loadFromAgent().catch(() => {});
+    }
+  }, [step, agentOk, loadFromAgent]);
+
+  useEffect(() => {
+    if (step !== 4 || !agentOk) {
+      return;
+    }
+    let cancelled = false;
+    setPlanLoading(true);
+    setPlanError(null);
+    fetchDevicePlan(jailbreakUdid ?? undefined)
+      .then((plan) => {
+        if (!cancelled) setDevicePlan(plan);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setDevicePlan(null);
+          setPlanError(e instanceof Error ? e.message : String(e));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPlanLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, agentOk, jailbreakUdid]);
+
+  const storeAppPkg =
+    packages.find((p) => p.package === "purplepois0n-zebra")?.package ??
+    packages.find((p) => p.package.includes("zebra"))?.package;
 
   return (
     <div className="wizard-layout">
@@ -185,22 +274,66 @@ export function JailbreakWizard() {
           {step === 4 && (
             <div className="wizard-panel">
               <h2>Jailbreak</h2>
-              <p className="muted">This will modify your device. Make sure you have a backup.</p>
-              {!pluginsEnabled && agentOk && (
+              <p className="muted">
+                The host scans your device, picks a strategy, and runs the matching path automatically.
+              </p>
+              <PlanSummary plan={devicePlan} loading={planLoading} error={planError} />
+              {!pluginsEnabled && agentOk && !alreadyJailbroken && (
                 <p className="warn-text">
                   Run <code>make plugins</code> and restart the host service before jailbreaking on hardware.
                 </p>
               )}
-              <ConsentGate label="I understand this will modify my device and I have a backup">
+              {!kpfBuilt && agentOk && !alreadyJailbroken && devicePlan?.plan.useBootDelivery && (
+                <p className="warn-text">
+                  Boot module not built — run <code>make kpf</code> for DFU usb-loader paths.
+                </p>
+              )}
+              <ConsentGate
+                label={
+                  alreadyJailbroken
+                    ? "I have already jailbroken this device (Dopamine/palera1n)"
+                    : "I understand this will modify my device and I have a backup"
+                }
+              >
                 {(enabled) => (
                   <div className="toolbar">
                     <button
                       type="button"
                       className="btn-jailbreak"
-                      disabled={!enabled || !agentOk || !pluginsEnabled || agent.running}
-                      onClick={() => agent.runJailbreak(identity?.mode, jailbreakUdid)}
+                      disabled={
+                        !enabled ||
+                        !agentOk ||
+                        agent.running ||
+                        planLoading ||
+                        (!alreadyJailbroken && (!pluginsEnabled || !canExecutePlan))
+                      }
+                      onClick={() =>
+                        alreadyJailbroken
+                          ? agent.runAlreadyJailbrokenProbe(jailbreakUdid)
+                          : agent.runAutoJailbreak(jailbreakUdid)
+                      }
                     >
-                      {agent.running ? "Working…" : "Jailbreak"}
+                      {agent.running
+                        ? "Working…"
+                        : alreadyJailbroken
+                          ? "Verify jailbreak"
+                          : "Jailbreak"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!agentOk || planLoading}
+                      onClick={() => {
+                        setPlanLoading(true);
+                        setPlanError(null);
+                        fetchDevicePlan(jailbreakUdid ?? undefined)
+                          .then(setDevicePlan)
+                          .catch((e) =>
+                            setPlanError(e instanceof Error ? e.message : String(e)),
+                          )
+                          .finally(() => setPlanLoading(false));
+                      }}
+                    >
+                      Rescan
                     </button>
                   </div>
                 )}
@@ -216,6 +349,11 @@ export function JailbreakWizard() {
             <div className="wizard-panel">
               <h2>All set</h2>
               <p>Browse and install packages from the store.</p>
+              {!storeAppPkg && (
+                <p className="muted note">
+                  No store app in catalog — run <code>legacy/scripts/seed-store.sh</code> on the host.
+                </p>
+              )}
               <div className="toolbar">
                 <button
                   type="button"
@@ -227,6 +365,11 @@ export function JailbreakWizard() {
                         append("Syncing store to device…");
                         await storeSync(selectedUdid);
                         append("Store synced to device.");
+                        if (storeAppPkg) {
+                          append(`Installing ${storeAppPkg}…`);
+                          const detail = await storeInstall(selectedUdid, storeAppPkg);
+                          append(detail);
+                        }
                       } else {
                         append("No device selected — loading host catalog only.");
                       }
@@ -240,7 +383,13 @@ export function JailbreakWizard() {
                     }
                   }}
                 >
-                  {postJbBusy ? "Working…" : selectedUdid ? "Sync & load packages" : "Load packages"}
+                  {postJbBusy
+                    ? "Working…"
+                    : selectedUdid
+                      ? storeAppPkg
+                        ? "Sync & install store"
+                        : "Sync & load packages"
+                      : "Load packages"}
                 </button>
                 <Link to="/store" className="btn-primary btn-link">
                   Open store

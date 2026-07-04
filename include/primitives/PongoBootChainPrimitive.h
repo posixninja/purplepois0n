@@ -1,11 +1,14 @@
 /*
  * PongoBootChainPrimitive.h
+ *
+ * @deprecated Alias for UsbLoaderBootChainPrimitive (name: pongo-boot-chain).
  */
 
 #ifndef PRIMITIVES_PONGO_BOOT_CHAIN_PRIMITIVE_H_
 #define PRIMITIVES_PONGO_BOOT_CHAIN_PRIMITIVE_H_
 
 #include "Primitive.h"
+#include "primitives/UsbLoaderBootChainPrimitive.h"
 
 namespace PP {
 namespace primitives {
@@ -18,6 +21,9 @@ public:
     std::vector<DeviceState> requiredDeviceStates() const override;
     bool canRun(const ExecutionContext& context) const override;
     PrimitiveResult execute(ExecutionContext& context) override;
+
+private:
+    UsbLoaderBootChainPrimitive mDelegate;
 };
 
 } /* namespace primitives */

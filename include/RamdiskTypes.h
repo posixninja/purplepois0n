@@ -78,6 +78,49 @@ struct RamdiskConnectOptions {
 
 RamdiskConnectOptions ramdiskConnectOptionsFromEnv();
 
+/** How a built ramdisk artifact is packaged for upload. */
+enum class RamdiskArtifactFormat {
+    Auto,
+    /** Raw HFS+ .dmg — USB loader bulk upload (Pongo and similar). */
+    RawDmg,
+    /** Personalized RestoreRamDisk IM4P — Recovery / libirecovery chain. */
+    Im4p,
+};
+
+/** Host→device delivery lane for ramdisk + optional boot module (KPF, etc.). */
+enum class BootDeliveryLane {
+    Auto,
+    /** Build artifact on host only; no upload. */
+    HostBuild,
+    /** Recovery mode: iBSS → iBEC → signed rdsk IM4P. */
+    Recovery,
+    /** USB secondary loader bulk protocol (PongoOS today; extensible). */
+    UsbLoader,
+    /** Post-exploit boot-chain inject (Anthrax-style; future lanes). */
+    PostExploit,
+    /** Ramdisk already running — usbmux TCP/SSH agent. */
+    LiveAgent,
+};
+
+RamdiskArtifactFormat ramdiskArtifactFormatFromString(const std::string& text);
+const char* ramdiskArtifactFormatLabel(RamdiskArtifactFormat format);
+BootDeliveryLane bootDeliveryLaneFromString(const std::string& text);
+const char* bootDeliveryLaneLabel(BootDeliveryLane lane);
+
+/** Resolved ramdisk artifact + optional boot module (lane-agnostic). Ramdisk does not imply a payload. */
+struct BootDeliverySpec {
+    std::string artifactPath;
+    RamdiskArtifactFormat format = RamdiskArtifactFormat::Auto;
+    BootDeliveryLane lane = BootDeliveryLane::Auto;
+    /** Optional post-loader module (KPF, exploit blob, etc.) — lane-dependent. */
+    std::string modulePath;
+    /** Optional kernel boot-args line — transport-specific default when empty. */
+    std::string bootArgsLine;
+};
+
+/** @deprecated Use BootDeliverySpec */
+typedef BootDeliverySpec RamdiskDeliverySpec;
+
 } /* namespace PP */
 
 #endif /* RAMDISK_TYPES_H_ */

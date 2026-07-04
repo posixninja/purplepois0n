@@ -15,6 +15,7 @@
 #include "Gen0Workflow.h"
 #include "Gen0CliOptions.h"
 #include "DoctorWorkflow.h"
+#include "JailbreakPlanner.h"
 #include "Checkm8.h"
 #include "Usbliter8.h"
 #include "BootromExploit.h"
@@ -35,7 +36,11 @@
 #include "primitives/CodesignTypes.h"
 #include "RamdiskTypes.h"
 #include "EnvUtil.h"
+#include "cli/CliParser.h"
+#include "pongo/PongoBootHelpers.h"
 #include "../include/DeviceState.h"
+
+#include <sys/stat.h>
 
 using namespace PP;
 using namespace PP::primitives;
@@ -114,6 +119,16 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  --ramdisk-overlay DIR        Files merged into ramdisk volume"
               << std::endl;
+    std::cout << "  --ramdisk PATH               Boot artifact (.dmg raw or .im4p; lane-specific)"
+              << std::endl;
+    std::cout << "  --boot-lane LANE             auto|recovery|usb-loader|post-exploit|live-agent"
+              << std::endl;
+    std::cout << "  --ramdisk-format FMT         auto|raw-dmg|im4p"
+              << std::endl;
+    std::cout << "  --boot-module PATH           Post-loader module (KPF; aliases --pongo-kpf)"
+              << std::endl;
+    std::cout << "  --boot-args LINE             Kernel boot-args (Pongo xargs; env PURPLEPOIS0N_PONGO_XARGS)"
+              << std::endl;
     std::cout << "  --ramdisk-work-dir DIR       Scratch dir for ipsw extract/repack"
               << std::endl;
     std::cout << "  --ramdisk-size BYTES         Blank build size (default 16m)"
@@ -158,7 +173,7 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  --pongo-kpf PATH             KPF blob for --pongo-boot (or PURPLEPOIS0N_KPF / built module)"
               << std::endl;
-    std::cout << "  --pongo-ramdisk PATH         Raw HFS+ .dmg for Pongo bulk upload"
+    std::cout << "  --pongo-ramdisk PATH         (alias) same as --ramdisk for usb-loader lane"
               << std::endl;
     std::cout << "  --pongo-spawn-checkra1n      Run checkra1n -cp before Pongo probe/boot"
               << std::endl;
@@ -206,7 +221,9 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  --i-understand-jailbreak     Acknowledge mutating jailbreak execute path"
               << std::endl;
-    std::cout << "  --doctor-run                 One-button doctors flow (JSON steps on stdout)"
+    std::cout << "  --doctor-run                 Scan device, plan strategy, run jailbreak (JSON steps)"
+              << std::endl;
+    std::cout << "  --device-plan                JSON device profile + jailbreak plan (probe only)"
               << std::endl;
     std::cout << "  --capabilities               Print JSON host capabilities (plugins, store)"
               << std::endl;
@@ -214,8 +231,9 @@ static void printUsage(const char* programName) {
     std::cout << "DFU jailbreak recipe (A5–A11, device in DFU):" << std::endl;
     std::cout << "  make plugins kpf" << std::endl;
     std::cout << "  ./purplepois0n --dfu-jailbreak --i-understand-jailbreak \\" << std::endl;
-    std::cout << "    --pongo-kpf legacy/kpf-purple/build/purplepois0n-kpf-pongo \\" << std::endl;
-    std::cout << "    --pongo-ramdisk /path/to/raw.dmg   # or --ipsw firmware.ipsw" << std::endl;
+    std::cout << "    --boot-lane usb-loader \\" << std::endl;
+    std::cout << "    --boot-module legacy/kpf-purple/build/purplepois0n-kpf-pongo \\" << std::endl;
+    std::cout << "    --ramdisk /path/to/raw.dmg   # or --ipsw firmware.ipsw" << std::endl;
     std::cout << "  --kernelcache PATH           Host kernelcache for offline patchfind/patch"
               << std::endl;
     std::cout << "  --patch-profile PATH         JSON patch descriptors (offset + hex/bytes)"
@@ -223,6 +241,10 @@ static void printUsage(const char* programName) {
     std::cout << "  --patch-out PATH             Output path for patched kernelcache"
               << std::endl;
     std::cout << "  --normal-ssh                 Use SSH for trustcache on jailbroken Normal device"
+              << std::endl;
+    std::cout << "  --external-jailbreak         Delegate to palera1n/checkra1n script (make plugins)"
+              << std::endl;
+    std::cout << "  --already-jailbroken         With --external-jailbreak: probe /var/jb only, skip helper"
               << std::endl;
     std::cout << "  --rootless-probe             Probe /var/jb bootstrap over SSH (needs --normal-ssh)"
               << std::endl;
@@ -233,6 +255,10 @@ static void printUsage(const char* programName) {
     std::cout << "  --store-add PATH             Copy .deb into pool and rebuild index"
               << std::endl;
     std::cout << "  --store-sync                 Push repo to device (needs --normal-ssh)"
+              << std::endl;
+    std::cout << "  --store-sync-mode MODE       file (default), https, or sources-only"
+              << std::endl;
+    std::cout << "  --store-installed            List installed packages on device (needs --normal-ssh)"
               << std::endl;
     std::cout << "  --store-install PKG          apt/dpkg install package after sync"
               << std::endl;
@@ -286,6 +312,11 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  primitives::ChainRunner    staged probe/execute primitive chain"
               << std::endl;
+}
+
+static bool isRegularFile(const std::string& path) {
+    struct stat st = {};
+    return !path.empty() && stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
 }
 
 static void initBootromExploits() {
@@ -442,11 +473,38 @@ static bool runAfcPull(DeviceManager& manager, const std::string& targetUDID,
 int main(int argc, char* argv[]) {
     initBootromExploits();
 
+    const cli::SubcommandResult sub = cli::trySubcommand(argc, argv);
+    if (sub.handled) {
+        if (sub.showSubcommandHelp) {
+            if (!sub.subcommandHelpTopic.empty()) {
+                cli::printTopicHelp(argv[0], sub.subcommandHelpTopic.c_str());
+            } else {
+                cli::printSubcommandHelp(argv[0]);
+            }
+            return sub.exitCode;
+        }
+        return sub.exitCode;
+    }
+
+    std::vector<std::string> ownedArgvStorage;
+    std::vector<char*> ownedArgvPtrs;
+    if (sub.useLegacy && !sub.rewrittenArgv.empty()) {
+        ownedArgvStorage = sub.rewrittenArgv;
+        ownedArgvPtrs.reserve(ownedArgvStorage.size());
+        for (size_t i = 0; i < ownedArgvStorage.size(); ++i) {
+            ownedArgvPtrs.push_back(&ownedArgvStorage[i][0]);
+        }
+        argc = static_cast<int>(ownedArgvPtrs.size());
+        argv = ownedArgvPtrs.data();
+    }
+
     bool listDevicesFlag = false;
     bool jailbreakFlag = true;
     bool gen0Flag = false;
     bool checkm8Flag = false;
     bool dfuJailbreakFlag = false;
+    bool externalJailbreakFlag = false;
+    bool externalSkipHelperFlag = false;
     bool analyzeBackupFlag = false;
     bool analyzeCrashFlag = false;
     bool analyzeBinaryFlag = false;
@@ -510,6 +568,11 @@ int main(int argc, char* argv[]) {
     std::string ramdiskPullRemote;
     std::string ramdiskPullLocal;
     std::string ramdiskListPath;
+    std::string ramdiskPath;
+    std::string bootLaneStr;
+    std::string ramdiskFormatStr;
+    std::string bootModulePath;
+    std::string bootArgsLine;
     std::string ramdiskSshPortStr;
     std::string ramdiskSshPass;
     std::string ramdiskSshKey;
@@ -540,12 +603,15 @@ int main(int argc, char* argv[]) {
     bool jailbreakExecuteFlag = false;
     bool understandJailbreakFlag = false;
     bool doctorRunFlag = false;
+    bool devicePlanFlag = false;
     bool capabilitiesFlag = false;
     bool normalSshFlag = false;
     bool rootlessProbeFlag = false;
     bool storeInitFlag = false;
     bool storeBuildFlag = false;
     bool storeSyncFlag = false;
+    bool storeInstalledFlag = false;
+    std::string storeSyncModeStr = "file";
     bool storePublishFlag = false;
     std::string storePublishPath;
     std::string storeAddPath;
@@ -592,6 +658,11 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--checkm8") == 0) {
             checkm8Flag = true;
             jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--external-jailbreak") == 0) {
+            externalJailbreakFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--already-jailbroken") == 0) {
+            externalSkipHelperFlag = true;
         } else if (strcmp(argv[i], "--dfu-jailbreak") == 0) {
             dfuJailbreakFlag = true;
             jailbreakFlag = false;
@@ -923,9 +994,49 @@ int main(int argc, char* argv[]) {
             pongoExecuteFlag = true;
             pongoBootFlag = true;
             jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--ramdisk") == 0) {
+            if (i + 1 < argc) {
+                ramdiskPath = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--ramdisk requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--boot-lane") == 0) {
+            if (i + 1 < argc) {
+                bootLaneStr = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--boot-lane requires LANE (recovery|usb-loader|post-exploit|...)");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--ramdisk-format") == 0) {
+            if (i + 1 < argc) {
+                ramdiskFormatStr = argv[++i];
+            } else {
+                Logger::error("--ramdisk-format requires auto|raw-dmg|im4p");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--boot-module") == 0) {
+            if (i + 1 < argc) {
+                bootModulePath = argv[++i];
+            } else {
+                Logger::error("--boot-module requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--boot-args") == 0 || strcmp(argv[i], "--pongo-xargs") == 0) {
+            if (i + 1 < argc) {
+                bootArgsLine = argv[++i];
+            } else {
+                Logger::error("--boot-args requires a LINE argument");
+                return 1;
+            }
         } else if (strcmp(argv[i], "--pongo-kpf") == 0) {
             if (i + 1 < argc) {
                 pongoKpfPath = argv[++i];
+                if (bootModulePath.empty()) {
+                    bootModulePath = pongoKpfPath;
+                }
             } else {
                 Logger::error("--pongo-kpf requires a PATH argument");
                 return 1;
@@ -933,6 +1044,12 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "--pongo-ramdisk") == 0) {
             if (i + 1 < argc) {
                 pongoRamdiskPath = argv[++i];
+                if (ramdiskPath.empty()) {
+                    ramdiskPath = pongoRamdiskPath;
+                }
+                if (bootLaneStr.empty()) {
+                    bootLaneStr = "usb-loader";
+                }
             } else {
                 Logger::error("--pongo-ramdisk requires a PATH argument");
                 return 1;
@@ -1089,6 +1206,9 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "--doctor-run") == 0) {
             doctorRunFlag = true;
             jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--device-plan") == 0) {
+            devicePlanFlag = true;
+            jailbreakFlag = false;
         } else if (strcmp(argv[i], "--kernelcache") == 0) {
             if (i + 1 < argc) {
                 kernelcachePath = argv[++i];
@@ -1132,6 +1252,17 @@ int main(int argc, char* argv[]) {
             }
         } else if (strcmp(argv[i], "--store-sync") == 0) {
             storeSyncFlag = true;
+            jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--store-sync-mode") == 0) {
+            if (i + 1 < argc) {
+                storeSyncModeStr = argv[++i];
+                jailbreakFlag = false;
+            } else {
+                Logger::error("--store-sync-mode requires file|https|sources-only");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--store-installed") == 0) {
+            storeInstalledFlag = true;
             jailbreakFlag = false;
         } else if (strcmp(argv[i], "--store-install") == 0) {
             if (i + 1 < argc) {
@@ -1418,7 +1549,23 @@ int main(int argc, char* argv[]) {
         if (!normalSshFlag) {
             Logger::warn("--store-sync expects --normal-ssh (or PURPLEPOIS0N_NORMAL_SSH=1)");
         }
-        return runStoreSync(ramdiskConnectCli, storeRootPath, true) ? 0 : 1;
+        return runStoreSync(ramdiskConnectCli, storeRootPath, true,
+                            store::parseStoreSyncMode(storeSyncModeStr))
+                   ? 0
+                   : 1;
+    }
+    if (storeInstalledFlag) {
+        if (!normalSshFlag) {
+            Logger::warn("--store-installed expects --normal-ssh (or PURPLEPOIS0N_NORMAL_SSH=1)");
+        }
+        std::vector<std::string> installed;
+        if (!runStoreListInstalled(ramdiskConnectCli, &installed)) {
+            return 1;
+        }
+        for (size_t i = 0; i < installed.size(); ++i) {
+            std::cout << installed[i] << std::endl;
+        }
+        return 0;
     }
     if (!storeInstallPkg.empty()) {
         if (!normalSshFlag) {
@@ -1508,6 +1655,11 @@ int main(int argc, char* argv[]) {
         cli.ramdiskDownloadRemote = ramdiskPullRemote;
         cli.ramdiskDownloadLocal = ramdiskPullLocal;
         cli.ramdiskListPath = ramdiskListPath;
+        cli.ramdiskPath = ramdiskPath;
+        cli.bootLaneStr = bootLaneStr;
+        cli.ramdiskFormatStr = ramdiskFormatStr;
+        cli.bootModulePath = bootModulePath;
+        cli.bootArgsLine = bootArgsLine;
         cli.recoveryChainFlag = recoveryChainFlag;
         cli.recoveryExecuteFlag = recoveryExecuteFlag;
         cli.pongoProbeFlag = pongoProbeFlag;
@@ -1516,11 +1668,12 @@ int main(int argc, char* argv[]) {
         cli.pongoSpawnCheckra1nFlag = pongoSpawnCheckra1nFlag;
         cli.pongoKpfPath = pongoKpfPath;
         cli.pongoRamdiskPath = pongoRamdiskPath;
-        cli.pongoXargsLine = pongoXargsLine;
+        cli.pongoXargsLine = bootArgsLine.empty() ? pongoXargsLine : bootArgsLine;
         cli.postJbPipelineFlag = postJbPipelineFlag;
         cli.postJbStoreFlag = postJbStoreFlag;
         cli.postJbStoreInstallPkg = postJbStoreInstallPkg;
         cli.storeRoot = storeRootPath;
+        cli.storeSyncMode = storeSyncModeStr;
         cli.medicineProbeFlag = medicineProbeFlag || medicineWithPipelineFlag;
         cli.medicineApplyFlag = medicineApplyFlag;
         cli.medicineCures = medicineCures;
@@ -1533,6 +1686,8 @@ int main(int argc, char* argv[]) {
         cli.kernelcachePath = kernelcachePath;
         cli.patchProfilePath = patchProfilePath;
         cli.patchOutPath = patchOutPath;
+        cli.externalJailbreakFlag = externalJailbreakFlag;
+        cli.externalSkipHelperFlag = externalSkipHelperFlag;
         if (signMachoFlag || signAppFlag || signIpaFlag) {
             cli.codesignInputPath = signInputPath;
             cli.codesignOutputPath = signOutputPath;
@@ -1545,10 +1700,46 @@ int main(int argc, char* argv[]) {
             Logger::error("jailbreak execute requires --i-understand-jailbreak");
             return 1;
         }
-        if (!exploitPluginsEnabled()) {
+        bool skipPluginsForAlreadyJb = false;
+        if (doctorRunFlag) {
+            DeviceProfile profile;
+            if (buildDeviceProfile(manager, targetUDID, &profile)) {
+                const HostCapabilities host = probeHostCapabilities();
+                const JailbreakPlan plan = planJailbreak(profile, host);
+                skipPluginsForAlreadyJb = plan.alreadyJailbroken;
+            }
+        }
+        if (!skipPluginsForAlreadyJb && !exploitPluginsEnabled()) {
             Logger::error("jailbreak execute requires make plugins");
             return 1;
         }
+    }
+
+
+    if (externalJailbreakFlag) {
+        if (!externalSkipHelperFlag && !understandJailbreakFlag) {
+            Logger::error("--external-jailbreak requires --i-understand-jailbreak (or --already-jailbroken)");
+            return 1;
+        }
+        if (!externalSkipHelperFlag && !exploitPluginsEnabled()) {
+            Logger::error("--external-jailbreak requires make plugins");
+            return 1;
+        }
+        if (!normalSshFlag) {
+            ramdiskConnectCli.transport = RamdiskTransport::Ssh;
+        }
+        Gen0Options extOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
+        extOpts.ramdisk.connect = ramdiskConnectCli;
+        if (extOpts.ramdisk.connect.udid.empty() && !targetUDID.empty()) {
+            extOpts.ramdisk.connect.udid = targetUDID;
+        }
+        extOpts.externalJailbreak = true;
+        extOpts.externalSkipHelper = externalSkipHelperFlag;
+        extOpts.postJbStoreSync = postJbStoreFlag;
+        extOpts.postJbStoreInstallPkg = postJbStoreInstallPkg;
+        extOpts.storeRoot = storeRootPath;
+        extOpts.storeSyncMode = store::parseStoreSyncMode(storeSyncModeStr);
+        return runExternalJailbreak(manager, targetUDID, extOpts) ? 0 : 1;
     }
 
     if (dfuJailbreakFlag) {
@@ -1614,6 +1805,7 @@ int main(int argc, char* argv[]) {
         pipeOpts.trustCachePath = trustCachePath;
         pipeOpts.ramdisk.connect = ramdiskConnectCli;
         pipeOpts.storeRoot = storeRootPath;
+        pipeOpts.storeSyncMode = store::parseStoreSyncMode(storeSyncModeStr);
         if (pipeOpts.ramdisk.connect.udid.empty() && !targetUDID.empty()) {
             pipeOpts.ramdisk.connect.udid = targetUDID;
         }
@@ -1682,8 +1874,32 @@ int main(int argc, char* argv[]) {
     }
     
     if (capabilitiesFlag) {
+        const std::string kpfModule = resolveDefaultKpfPath();
+        const std::string kpfTest = "legacy/kpf-purple/build/kpf-test-purple.macos";
+        const bool moduleBuilt = isRegularFile(kpfModule);
+        const bool testBuilt = isRegularFile(kpfTest);
         std::cout << "{\"plugins\":" << (exploitPluginsEnabled() ? "true" : "false")
-                  << ",\"doctor\":true,\"store\":true,\"normalSsh\":true}" << std::endl;
+                  << ",\"doctor\":true,\"store\":true,\"normalSsh\":true"
+                  << ",\"kpf\":{\"built\":" << (moduleBuilt && testBuilt ? "true" : "false")
+                  << ",\"moduleBuilt\":" << (moduleBuilt ? "true" : "false")
+                  << ",\"testBuilt\":" << (testBuilt ? "true" : "false");
+        if (moduleBuilt) {
+            std::cout << ",\"module\":\"" << kpfModule << "\"";
+        }
+        if (testBuilt) {
+            std::cout << ",\"test\":\"" << kpfTest << "\"";
+        }
+        std::cout << "}}" << std::endl;
+        return 0;
+    }
+
+    if (devicePlanFlag) {
+        std::string json;
+        if (!runDevicePlanScan(manager, targetUDID, &json)) {
+            Logger::error("No device detected for --device-plan");
+            return 1;
+        }
+        std::cout << json << std::endl;
         return 0;
     }
 

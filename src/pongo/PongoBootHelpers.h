@@ -12,6 +12,7 @@
 
 namespace PP {
 
+std::string resolveDefaultKpfPath();
 std::string resolvePongoKpfPath(const primitives::ExecutionContext& context);
 std::string resolvePongoXargs(const primitives::ExecutionContext& context);
 bool readFileBytes(const std::string& path, std::vector<uint8_t>* out);

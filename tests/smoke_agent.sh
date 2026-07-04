@@ -44,6 +44,25 @@ echo "$DEVICES" | grep -q '"devices"' || {
   exit 1
 }
 
+STORE_PKGS="$(curl -sf "$BASE/store/packages" 2>/dev/null || echo '')"
+echo "$STORE_PKGS" | grep -q 'Package:' || {
+  echo "FAIL: /store/packages did not return Packages index"
+  echo "$STORE_PKGS" | head -5
+  exit 1
+}
+
+if [[ -n "${PURPLEPOIS0N_DEVICE_UDID:-}" ]]; then
+  PLAN="$(curl -sf "$BASE/device/plan?udid=${PURPLEPOIS0N_DEVICE_UDID}" 2>/dev/null || echo '{}')"
+  echo "$PLAN" | grep -q '"plan"' || {
+    echo "FAIL: /device/plan failed for PURPLEPOIS0N_DEVICE_UDID"
+    echo "$PLAN"
+    exit 1
+  }
+else
+  PLAN="$(curl -sf "$BASE/device/plan" 2>/dev/null || echo '{}')"
+  echo "$PLAN" | grep -q '"plan"' || echo "WARN: /device/plan unavailable (no device?)"
+fi
+
 OUT="$(curl -sf -X POST -H 'Content-Type: application/json' -d '{"execute":false}' "$BASE/doctor" || true)"
 echo "$OUT" | grep -q '"type"[[:space:]]*:[[:space:]]*"step"' || {
   echo "FAIL: expected doctor step JSON"
@@ -52,6 +71,19 @@ echo "$OUT" | grep -q '"type"[[:space:]]*:[[:space:]]*"step"' || {
 }
 echo "$OUT" | grep -q '"type"[[:space:]]*:[[:space:]]*"complete"' || {
   echo "FAIL: expected doctor complete JSON"
+  exit 1
+}
+# Probe-only doctor must not enter jailbreak step.
+if echo "$OUT" | grep -q '"id"[[:space:]]*:[[:space:]]*"jailbreak"'; then
+  echo "FAIL: doctor probe should not run jailbreak step"
+  exit 1
+fi
+
+JB_OUT="$(curl -sf -X POST -H 'Content-Type: application/json' \
+  -d '{"auto":true,"execute":false}' "$BASE/jailbreak" 2>/dev/null || true)"
+echo "$JB_OUT" | grep -q '"type"[[:space:]]*:[[:space:]]*"complete"' || {
+  echo "FAIL: /jailbreak auto probe expected complete JSON"
+  echo "$JB_OUT" | head -5
   exit 1
 }
 

@@ -7,12 +7,15 @@ purplepois0n localhost agent — bridges the web UI to the native CLI.
 Endpoints:
   GET  /health
   GET  /devices
+  GET  /device/plan?udid=       JSON profile + jailbreak strategy (AI/planner input)
   GET  /store/packages?storeRoot=
-  POST /doctor              {"execute": false, "udid": ""}  -> NDJSON stream
-  POST /jailbreak             {"mode": "", "udid": ""}        -> NDJSON stream
+  GET  /store/installed?udid=
+  POST /doctor              {"execute": false, "udid": ""}  -> NDJSON stream (probe; no jailbreak step)
+  POST /jailbreak             {"auto": true, "execute": true, "udid": ""} -> NDJSON stream (doctor auto-plan)
   POST /checkm8               {"udid": ""}                    -> NDJSON stream
   POST /dfu-jailbreak         {"udid": ""}                    -> NDJSON stream
-  POST /store/sync            {"udid": "", "storeRoot": ""}
+  POST /external-jailbreak    {"udid": "", "already_jailbroken": false} -> NDJSON
+  POST /store/sync            {"udid": "", "storeRoot": "", "syncMode": "file"}
   POST /store/install         {"udid": "", "package": "", "storeRoot": ""}
   POST /store/publish         {"storeRoot": "", "publishRoot": ""}
 """
@@ -57,6 +60,11 @@ def ssh_env(base: dict[str, str] | None = None) -> dict[str, str]:
     env["PURPLEPOIS0N_RAMDISK_AUTO_IPROXY"] = "1"
     env["PURPLEPOIS0N_NORMAL_SSH"] = "1"
     return env
+
+
+def agent_env(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Default env for device plan, doctor, and jailbreak streams."""
+    return ssh_env(base)
 
 
 def udid_from_body(body: dict) -> str | None:
@@ -137,6 +145,24 @@ def list_devices() -> list[dict[str, Any]]:
     return parse_list_output(out)
 
 
+def cli_device_plan(bin_path: Path, udid: str | None = None) -> dict[str, Any]:
+    cmd = build_cli_cmd(["--device-plan"], udid)
+    try:
+        out = subprocess.check_output(
+            cmd,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=str(REPO_ROOT),
+            env=agent_env(),
+            timeout=60,
+        )
+        return json.loads(out.strip())
+    except subprocess.CalledProcessError as e:
+        return {"error": e.output or str(e)}
+    except json.JSONDecodeError as e:
+        return {"error": f"invalid plan json: {e}"}
+
+
 def cli_capabilities(bin_path: Path) -> dict[str, Any]:
     try:
         out = subprocess.check_output(
@@ -168,9 +194,24 @@ def pick_jailbreak_args(body: dict, devices: list[dict[str, Any]]) -> list[str]:
             if device.get("udid") == udid:
                 mode = (device.get("state") or "").lower()
                 break
-    if mode in DFU_STATES:
+    if body.get("auto") or body.get("use_plan"):
+        args = ["--doctor-run", "--normal-ssh"]
+        if body.get("execute") or body.get("i_understand_jailbreak"):
+            args.extend(["--jailbreak-execute", "--i-understand-jailbreak"])
+        if body.get("post_jb_store"):
+            args.append("--post-jb-store")
+        return args
+    if body.get("already_jailbroken"):
+        args = ["--external-jailbreak", "--already-jailbroken", "--normal-ssh"]
+        if body.get("post_jb_store"):
+            args.append("--post-jb-store")
+        return args
+    if body.get("experimental_dfu") and mode in DFU_STATES:
         return ["--dfu-jailbreak", "--i-understand-jailbreak"]
-    return ["--doctor-run", "--jailbreak-execute", "--i-understand-jailbreak"]
+    args = ["--external-jailbreak", "--i-understand-jailbreak", "--normal-ssh"]
+    if body.get("post_jb_store"):
+        args.append("--post-jb-store")
+    return args
 
 
 class AgentHandler(BaseHTTPRequestHandler):
@@ -234,6 +275,18 @@ class AgentHandler(BaseHTTPRequestHandler):
             self._json(200, {"devices": list_devices()})
             return
 
+        if path == "/device/plan":
+            qs = parse_qs(parsed.query)
+            udid = (qs.get("udid") or [""])[0].strip() or os.environ.get("PURPLEPOIS0N_DEVICE_UDID", "").strip()
+            bin_path = resolve_bin()
+            if not bin_path.is_file():
+                self._json(500, {"error": f"binary not found: {bin_path}"})
+                return
+            plan = cli_device_plan(bin_path, udid or None)
+            code = 200 if "error" not in plan else 404
+            self._json(code, plan)
+            return
+
         if path == "/store/packages":
             qs = parse_qs(parsed.query)
             store_root = (qs.get("storeRoot") or [""])[0]
@@ -242,6 +295,16 @@ class AgentHandler(BaseHTTPRequestHandler):
                 self._json(404, {"error": content})
                 return
             self._text(200, content, "text/plain")
+            return
+
+        if path == "/store/installed":
+            qs = parse_qs(parsed.query)
+            udid = (qs.get("udid") or [""])[0].strip() or os.environ.get("PURPLEPOIS0N_DEVICE_UDID", "").strip()
+            ok, packages = store_installed(udid or None)
+            if not ok:
+                self._json(500, {"error": packages if isinstance(packages, str) else "probe failed"})
+                return
+            self._json(200, {"packages": packages})
             return
 
         self._json(404, {"error": "not found"})
@@ -267,10 +330,22 @@ class AgentHandler(BaseHTTPRequestHandler):
                 udid_from_body(body),
             )
             return
+        if self.path == "/external-jailbreak":
+            args = ["--external-jailbreak", "--i-understand-jailbreak", "--normal-ssh"]
+            if body.get("already_jailbroken"):
+                args = ["--external-jailbreak", "--already-jailbroken", "--normal-ssh"]
+            if body.get("post_jb_store"):
+                args.append("--post-jb-store")
+            install_pkg = (body.get("post_jb_store_install") or "").strip()
+            if install_pkg:
+                args.extend(["--post-jb-store-install", install_pkg])
+            self._stream_cli(args, udid_from_body(body))
+            return
         if self.path == "/store/sync":
             udid = udid_from_body(body)
             store_root = body.get("storeRoot") or ""
-            ok, msg = store_sync(udid, store_root)
+            sync_mode = (body.get("syncMode") or "file").strip() or "file"
+            ok, msg = store_sync(udid, store_root, sync_mode)
             self._json(200 if ok else 500, {"ok": ok, "detail": msg} if ok else {"error": msg})
             return
         if self.path == "/store/install":
@@ -296,10 +371,10 @@ class AgentHandler(BaseHTTPRequestHandler):
         if not bin_path.is_file():
             self._json(500, {"error": f"binary not found: {bin_path}"})
             return
-        self._stream_subprocess(build_cli_cmd(args, udid))
+        self._stream_subprocess(build_cli_cmd(args, udid), env=agent_env())
 
     def _stream_doctor(self, execute: bool, udid: str | None) -> None:
-        cmd = ["--doctor-run"]
+        cmd = ["--doctor-run", "--normal-ssh"]
         if execute:
             cmd.extend(["--jailbreak-execute", "--i-understand-jailbreak"])
         self._stream_cli(cmd, udid)
@@ -321,20 +396,30 @@ class AgentHandler(BaseHTTPRequestHandler):
             stderr=subprocess.STDOUT,
             text=True,
             cwd=str(REPO_ROOT),
-            env=env or os.environ.copy(),
+            env=env or agent_env(),
         )
+        saw_complete = False
         for line in iter_ndjson_lines(proc):
             chunk = line.encode("utf-8")
             self.wfile.write(f"{len(chunk):x}\r\n".encode())
             self.wfile.write(chunk)
             self.wfile.write(b"\r\n")
             self.wfile.flush()
+            stripped = line.strip()
+            if stripped.startswith("{"):
+                try:
+                    ev = json.loads(stripped)
+                    if ev.get("type") == "complete":
+                        saw_complete = True
+                except json.JSONDecodeError:
+                    pass
         proc.wait()
-        trailer = json.dumps({"type": "complete", "success": proc.returncode == 0}) + "\n"
-        data = trailer.encode("utf-8")
-        self.wfile.write(f"{len(data):x}\r\n".encode())
-        self.wfile.write(data)
-        self.wfile.write(b"\r\n")
+        if not saw_complete:
+            trailer = json.dumps({"type": "complete", "success": proc.returncode == 0}) + "\n"
+            data = trailer.encode("utf-8")
+            self.wfile.write(f"{len(data):x}\r\n".encode())
+            self.wfile.write(data)
+            self.wfile.write(b"\r\n")
         self.wfile.write(b"0\r\n\r\n")
         self.wfile.flush()
 
@@ -367,15 +452,16 @@ def store_packages(store_root: str) -> tuple[bool, str]:
     return True, pkg.read_text(encoding="utf-8", errors="replace")
 
 
-def store_sync(udid: str | None, store_root: str) -> tuple[bool, str]:
+def store_sync(udid: str | None, store_root: str, sync_mode: str = "file") -> tuple[bool, str]:
     bin_path = resolve_bin()
     if not bin_path.is_file():
         return False, f"binary not found: {bin_path}"
     if not udid:
         return False, "device UDID required — plug in, unlock, and trust this computer"
     root = store_root or str(resolve_store_root(None))
+    mode = sync_mode or "file"
     cmd = build_cli_cmd(
-        ["--store-root", root, "--store-sync", "--normal-ssh"],
+        ["--store-root", root, "--store-sync", "--store-sync-mode", mode, "--normal-ssh"],
         udid,
     )
     try:
@@ -388,6 +474,28 @@ def store_sync(udid: str | None, store_root: str) -> tuple[bool, str]:
             timeout=300,
         )
         return True, out.strip() or "store synced"
+    except subprocess.CalledProcessError as e:
+        return False, e.output or str(e)
+
+
+def store_installed(udid: str | None) -> tuple[bool, list[str] | str]:
+    bin_path = resolve_bin()
+    if not bin_path.is_file():
+        return False, f"binary not found: {bin_path}"
+    if not udid:
+        return False, "device UDID required — plug in, unlock, and trust this computer"
+    cmd = build_cli_cmd(["--store-installed", "--normal-ssh"], udid)
+    try:
+        out = subprocess.check_output(
+            cmd,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=str(REPO_ROOT),
+            env=ssh_env(),
+            timeout=120,
+        )
+        packages = [line.strip() for line in out.splitlines() if line.strip()]
+        return True, packages
     except subprocess.CalledProcessError as e:
         return False, e.output or str(e)
 

@@ -5,6 +5,7 @@ A unified iOS bootchain exploitation and research framework supporting all devic
 ## Overview
 
 purplepois0n is a research-grade C++ framework providing:
+- **MVP flow:** device scan → `JailbreakPlanner` strategy → doctor/agent/web execute ([docs/MVP.md](docs/MVP.md))
 - **Bootrom exploits** (Checkm8 A5-A11, Usbliter8 A12-A15) with CPID-based auto-routing
 - **Unified USB abstraction** (Syringe) supporting DFU, Recovery, Normal modes
 - **Interactive iBoot debugging** (Cyanide) with memory inspection and patching
@@ -18,11 +19,25 @@ purplepois0n supersedes **greenpois0n** (Chronic Dev Team, DFU/userland tooling 
 
 ## Documentation
 
-- [docs/README.md](docs/README.md) — Documentation index and reading order
-- [docs/book/README.md](docs/book/README.md) — Educational jailbreak era book (chapters + sources)
-- [docs/SUPPORT.md](docs/SUPPORT.md) — Gen 0 capability matrix (honest gaps vs greenpois0n/absinthe)
-- [docs/LINEAGE.md](docs/LINEAGE.md) — greenpois0n, absinthe, and purplepois0n’s role
-- [docs/GENERATIONS.md](docs/GENERATIONS.md) — Jailbreak generations, mitigations, and framework mapping
+**Start here for the product MVP:**
+
+- **[docs/MVP.md](docs/MVP.md)** — Scan → plan → execute; agent API; honest done/partial/not-MVP
+- **[QUICKSTART.md](QUICKSTART.md)** — Build, web UI, CLI doctor, smoke tests
+- **[docs/DOCTOR.md](docs/DOCTOR.md)** — Doctor JSON protocol and agent integration
+- **[docs/AGENT_API.md](docs/AGENT_API.md)** — Localhost HTTP API (`:7749`) for automation
+
+**Store & boot delivery:**
+
+- [docs/STORE_ECOSYSTEM.md](docs/STORE_ECOSYSTEM.md) — dpkg repo, SSH sync, zebra launcher
+- [docs/book/deep/recovery-ramdisk.md](docs/book/deep/recovery-ramdisk.md) — ramdisk builder + boot lanes
+- [docs/validation/mvp-smoke.md](docs/validation/mvp-smoke.md) — pre-demo checklist (`make smoke-mvp`)
+
+**Research & lineage:**
+
+- [docs/README.md](docs/README.md) — Documentation index
+- [docs/SUPPORT.md](docs/SUPPORT.md) — Honest capability matrix
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Full framework layers
+- [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) — Post-MVP backlog
 
 ## Features
 

@@ -7,10 +7,13 @@
 #include "RamdiskClient.h"
 #include "Logger.h"
 
+#include <dirent.h>
 #include <fstream>
 #include <sstream>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include <cstring>
 
 namespace PP {
 namespace store {
@@ -76,10 +79,108 @@ bool uploadStoreFile(RamdiskClient& client, const std::string& localPath,
     return client.uploadFile(localPath, remotePath);
 }
 
+void collectFilesRecursive(const std::string& dir, std::vector<std::string>* out) {
+    if (out == nullptr) {
+        return;
+    }
+    DIR* dp = opendir(dir.c_str());
+    if (dp == nullptr) {
+        return;
+    }
+    struct dirent* entry = nullptr;
+    while ((entry = readdir(dp)) != nullptr) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        const std::string path = joinPath(dir, entry->d_name);
+        struct stat st = {};
+        if (stat(path.c_str(), &st) != 0) {
+            continue;
+        }
+        if (S_ISDIR(st.st_mode)) {
+            collectFilesRecursive(path, out);
+        } else if (S_ISREG(st.st_mode)) {
+            out->push_back(path);
+        }
+    }
+    closedir(dp);
+}
+
+std::vector<std::string> listRepoTreeFiles(const std::string& storeRoot) {
+    std::vector<std::string> files;
+    const std::vector<std::string> roots = {
+        joinPath(storeRoot, "pool"),
+        joinPath(storeRoot, "dists"),
+    };
+    for (size_t i = 0; i < roots.size(); ++i) {
+        struct stat st = {};
+        if (stat(roots[i].c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+            collectFilesRecursive(roots[i], &files);
+        }
+    }
+    return files;
+}
+
+bool writeSourcesList(RamdiskClient& client, const std::string& jbroot,
+                      const std::string& sourcesListPath, StoreSyncMode mode) {
+    std::string sourceLine;
+    if (mode == StoreSyncMode::SourcesOnly) {
+        const std::string repoUrl = resolveRepoUrl();
+        if (repoUrl.find("YOUR_HOST") == std::string::npos) {
+            sourceLine = aptHttpsSourceLine();
+        } else {
+            sourceLine = aptSourceLine(jbroot);
+        }
+    } else {
+        sourceLine = aptSourceLine(jbroot);
+    }
+
+    const std::string tmpSources = "/tmp/pp-purplepois0n-sources-" + std::to_string(getpid()) + ".list";
+    {
+        std::ofstream out(tmpSources.c_str(), std::ios::trunc);
+        if (!out) {
+            return false;
+        }
+        out << sourceLine << "\n";
+    }
+    const bool ok = client.uploadFile(tmpSources, sourcesListPath);
+    unlink(tmpSources.c_str());
+    return ok;
+}
+
+void runAptUpdate(RamdiskClient& client, const std::string& jbroot) {
+    const std::string aptBin = jbroot + "/usr/bin/apt";
+    const std::string updateCmd = "test -x " + shellQuote(aptBin) + " && " + shellQuote(aptBin) +
+                                  " update 2>/dev/null || true";
+    client.exec(updateCmd);
+}
+
 } /* anonymous */
 
+StoreSyncMode parseStoreSyncMode(const std::string& mode) {
+    if (mode == "https") {
+        return StoreSyncMode::Https;
+    }
+    if (mode == "sources-only" || mode == "sources_only" || mode == "sourcesonly") {
+        return StoreSyncMode::SourcesOnly;
+    }
+    return StoreSyncMode::File;
+}
+
+const char* storeSyncModeLabel(StoreSyncMode mode) {
+    switch (mode) {
+        case StoreSyncMode::Https:
+            return "https";
+        case StoreSyncMode::SourcesOnly:
+            return "sources-only";
+        case StoreSyncMode::File:
+        default:
+            return "file";
+    }
+}
+
 StoreSyncResult syncStoreToDevice(const RamdiskConnectOptions& connect, const std::string& storeRoot,
-                                  bool allowMutation) {
+                                  bool allowMutation, StoreSyncMode mode) {
     StoreSyncResult result;
     const std::string root = storeRoot.empty() ? resolveStoreRoot() : storeRoot;
     const std::string jbroot = primitives::RootlessLayout::resolveJbroot();
@@ -92,8 +193,16 @@ StoreSyncResult syncStoreToDevice(const RamdiskConnectOptions& connect, const st
         return result;
     }
 
+    Logger::info(std::string("  [Store] sync mode: ") + storeSyncModeLabel(mode));
+
     if (!allowMutation) {
         Logger::info("  [Store] dry-run sync → " + result.deviceStorePath);
+        result.success = true;
+        return result;
+    }
+
+    if (mode == StoreSyncMode::Https) {
+        Logger::info("  [Store] https mode — skip device mirror; install purplepois0n-sources or purplepois0n-zebra on device");
         result.success = true;
         return result;
     }
@@ -105,9 +214,20 @@ StoreSyncResult syncStoreToDevice(const RamdiskConnectOptions& connect, const st
         return result;
     }
 
-    if (!ensureRemoteDir(client, result.deviceStorePath)) {
-        result.error = "failed to create device store dir";
-        return result;
+    const bool uploadMirror = mode == StoreSyncMode::File;
+    if (uploadMirror) {
+        if (!ensureRemoteDir(client, result.deviceStorePath)) {
+            result.error = "failed to create device store dir";
+            return result;
+        }
+
+        const std::vector<std::string> repoFiles = listRepoTreeFiles(root);
+        for (size_t i = 0; i < repoFiles.size(); ++i) {
+            if (!uploadStoreFile(client, repoFiles[i], root, result.deviceStorePath)) {
+                result.error = "failed to upload " + relativeFromStoreRoot(root, repoFiles[i]);
+                return result;
+            }
+        }
     }
 
     const std::string aptDir = primitives::RootlessLayout::jbPath("/etc/apt/sources.list.d", jbroot);
@@ -116,55 +236,19 @@ StoreSyncResult syncStoreToDevice(const RamdiskConnectOptions& connect, const st
         return result;
     }
 
-    const std::vector<std::string> indexFiles = {
-        built.packagesPath,
-        built.packagesGzPath,
-        built.packagesBz2Path,
-        built.releasePath,
-        joinPath(root, "Packages"),
-    };
-    for (size_t i = 0; i < indexFiles.size(); ++i) {
-        if (indexFiles[i].empty()) {
-            continue;
-        }
-        if (!uploadStoreFile(client, indexFiles[i], root, result.deviceStorePath)) {
-            result.error = "failed to upload " + relativeFromStoreRoot(root, indexFiles[i]);
-            return result;
-        }
-    }
-
-    const std::vector<std::string> debPaths = listDebPaths(root);
-    for (size_t i = 0; i < debPaths.size(); ++i) {
-        if (!uploadStoreFile(client, debPaths[i], root, result.deviceStorePath)) {
-            const size_t slash = debPaths[i].find_last_of('/');
-            const std::string base = slash == std::string::npos ? debPaths[i] : debPaths[i].substr(slash + 1);
-            result.error = "failed to upload " + base;
-            return result;
-        }
-    }
-
-    const std::string sourceLine = aptSourceLine(jbroot) + "\n";
-    const std::string tmpSources = "/tmp/pp-purplepois0n-sources-" + std::to_string(getpid()) + ".list";
-    {
-        std::ofstream out(tmpSources.c_str(), std::ios::trunc);
-        if (!out) {
-            result.error = "failed to write temp sources list";
-            return result;
-        }
-        out << sourceLine;
-    }
-    if (!client.uploadFile(tmpSources, result.sourcesListPath)) {
+    if (!writeSourcesList(client, jbroot, result.sourcesListPath, mode)) {
         result.error = "failed to install apt source list";
         return result;
     }
-    unlink(tmpSources.c_str());
 
-    const std::string aptBin = jbroot + "/usr/bin/apt";
-    const std::string updateCmd = "test -x " + shellQuote(aptBin) + " && " + shellQuote(aptBin) +
-                                " update 2>/dev/null || true";
-    client.exec(updateCmd);
+    runAptUpdate(client, jbroot);
 
-    Logger::info("  [Store] synced " + std::to_string(debPaths.size()) + " package(s) to device");
+    if (uploadMirror) {
+        const std::vector<std::string> debPaths = listDebPaths(root);
+        Logger::info("  [Store] synced " + std::to_string(debPaths.size()) + " package(s) to device");
+    } else {
+        Logger::info("  [Store] updated apt sources on device (no mirror upload)");
+    }
     result.success = true;
     return result;
 }
@@ -216,6 +300,56 @@ bool installPackageOnDevice(const RamdiskConnectOptions& connect, const std::str
         Logger::info(run.stdoutText);
     }
     Logger::info("  [Store] installed " + packageName);
+    return true;
+}
+
+bool listInstalledPackagesOnDevice(const RamdiskConnectOptions& connect,
+                                   std::vector<std::string>* packages, std::string* error) {
+    if (packages == nullptr) {
+        if (error != nullptr) {
+            *error = "null packages vector";
+        }
+        return false;
+    }
+    packages->clear();
+
+    RamdiskClient client(connect);
+    std::string probeMsg;
+    if (!client.probe(&probeMsg)) {
+        if (error != nullptr) {
+            *error = probeMsg.empty() ? "SSH probe failed" : probeMsg;
+        }
+        return false;
+    }
+
+    const std::string jbroot = primitives::RootlessLayout::resolveJbroot();
+    const std::string dpkgBin = jbroot + "/usr/bin/dpkg";
+    const std::string cmd = "test -x " + shellQuote(dpkgBin) + " && " + shellQuote(dpkgBin) + " -l";
+    const RamdiskCommandResult run = client.exec(cmd);
+    if (run.exitCode != 0) {
+        if (error != nullptr) {
+            *error = run.stderrText.empty() ? "dpkg -l failed" : run.stderrText;
+        }
+        return false;
+    }
+
+    std::istringstream lines(run.stdoutText);
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (line.size() < 4 || line.compare(0, 2, "ii") != 0) {
+            continue;
+        }
+        size_t start = line.find_first_not_of(' ', 2);
+        if (start == std::string::npos) {
+            continue;
+        }
+        size_t end = line.find(' ', start);
+        if (end == std::string::npos) {
+            packages->push_back(line.substr(start));
+        } else {
+            packages->push_back(line.substr(start, end - start));
+        }
+    }
     return true;
 }
 

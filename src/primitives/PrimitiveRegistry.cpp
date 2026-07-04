@@ -14,6 +14,7 @@
 #include "primitives/RecoveryUploadPrimitive.h"
 #include "primitives/RecoveryBootChainPrimitive.h"
 #include "primitives/PongoProbePrimitive.h"
+#include "primitives/UsbLoaderBootChainPrimitive.h"
 #include "primitives/PongoBootChainPrimitive.h"
 #include "primitives/RamdiskShellPrimitive.h"
 #include "primitives/MobileBackup2ProbePrimitive.h"
@@ -78,6 +79,7 @@ void PrimitiveRegistry::registerBootChainPrimitives() {
     registerBuiltin(std::unique_ptr<Primitive>(new RecoveryUploadPrimitive()));
     registerBuiltin(std::unique_ptr<Primitive>(new RecoveryBootChainPrimitive()));
     registerBuiltin(std::unique_ptr<Primitive>(new PongoProbePrimitive()));
+    registerBuiltin(std::unique_ptr<Primitive>(new UsbLoaderBootChainPrimitive()));
     registerBuiltin(std::unique_ptr<Primitive>(new PongoBootChainPrimitive()));
     registerBuiltin(std::unique_ptr<Primitive>(new RamdiskShellPrimitive()));
 }
@@ -132,6 +134,13 @@ std::vector<Primitive*> PrimitiveRegistry::list(PrimitiveCategory category) cons
 }
 
 Primitive* PrimitiveRegistry::findByName(const std::string& name) const {
+    if (name == "pongo-boot-chain") {
+        for (size_t i = 0; i < mPrimitives.size(); ++i) {
+            if (std::string("usb-loader-boot-chain") == mPrimitives[i]->name()) {
+                return mPrimitives[i].get();
+            }
+        }
+    }
     for (size_t i = 0; i < mPrimitives.size(); ++i) {
         if (name == mPrimitives[i]->name()) {
             return mPrimitives[i].get();

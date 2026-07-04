@@ -4,6 +4,7 @@
 
 #include "primitives/ChainRunner.h"
 #include "primitives/pongo/PongoChain.h"
+#include "primitives/BootChain.h"
 #include "primitives/PongoDelegate.h"
 #include "EnvUtil.h"
 #include "primitives/PrimitiveRegistry.h"
@@ -298,6 +299,10 @@ bool ChainRunner::runRecoveryMiniChain(ExecutionContext& context, bool executeMo
     recordReport(executeMode ? ChainStage::Execute : ChainStage::Probe, result,
                  "RecoveryBootChainPrimitive");
     return result == PrimitiveResult::Success;
+}
+
+bool ChainRunner::runBootDeliveryMiniChain(ExecutionContext& context, bool executeMode) {
+    return runBootDeliveryChain(context, executeMode, *this);
 }
 
 bool ChainRunner::runPongoMiniChain(ExecutionContext& context, bool executeMode) {

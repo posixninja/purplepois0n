@@ -3,6 +3,8 @@
  */
 
 #include "Gen0CliOptions.h"
+#include "store/DpkgStoreSync.h"
+#include "RamdiskTypes.h"
 
 namespace PP {
 
@@ -39,18 +41,38 @@ Gen0Options gen0OptionsFromCli(const CliParsedOptions& cli, Gen0CliIntent intent
     options.ramdisk.downloadRemote = cli.ramdiskDownloadRemote;
     options.ramdisk.downloadLocal = cli.ramdiskDownloadLocal;
     options.ramdisk.listPath = cli.ramdiskListPath;
+    options.ramdisk.artifactPath =
+        cli.ramdiskPath.empty() ? cli.pongoRamdiskPath : cli.ramdiskPath;
+    if (options.ramdisk.artifactPath.empty()) {
+        options.ramdisk.artifactPath = cli.buildRamdiskPath;
+    }
+    options.ramdisk.deliveryLane = bootDeliveryLaneFromString(cli.bootLaneStr);
+    if (options.ramdisk.deliveryLane == BootDeliveryLane::Auto &&
+        (options.pongo.bootRun || options.pongo.probeRun || !options.pongo.ramdiskDmgPath.empty())) {
+        options.ramdisk.deliveryLane = BootDeliveryLane::UsbLoader;
+    }
+    options.ramdisk.artifactFormat = ramdiskArtifactFormatFromString(cli.ramdiskFormatStr);
+    options.ramdisk.bootModulePath =
+        cli.bootModulePath.empty() ? cli.pongoKpfPath : cli.bootModulePath;
+    options.ramdisk.bootArgsLine =
+        cli.bootArgsLine.empty() ? cli.pongoXargsLine : cli.bootArgsLine;
+    options.ramdisk.deliveryRun = cli.pongoBootFlag || cli.pongoExecuteFlag;
+    options.ramdisk.deliveryProbe = cli.pongoProbeFlag;
     options.pongo.probeRun = cli.pongoProbeFlag;
     options.pongo.bootRun = cli.pongoBootFlag;
     options.pongo.execute = cli.pongoExecuteFlag;
     options.pongo.spawnCheckra1n = cli.pongoSpawnCheckra1nFlag;
     options.pongo.kpfPath = cli.pongoKpfPath;
-    options.pongo.ramdiskDmgPath =
-        cli.pongoRamdiskPath.empty() ? cli.buildRamdiskPath : cli.pongoRamdiskPath;
-    options.pongo.xargsLine = cli.pongoXargsLine;
+    if (options.pongo.kpfPath.empty()) {
+        options.pongo.kpfPath = options.ramdisk.bootModulePath;
+    }
+    options.pongo.ramdiskDmgPath = options.ramdisk.artifactPath;
+    options.pongo.xargsLine = options.ramdisk.bootArgsLine;
     options.postJbPipeline = cli.postJbPipelineFlag;
     options.postJbStoreSync = cli.postJbStoreFlag;
     options.postJbStoreInstallPkg = cli.postJbStoreInstallPkg;
     options.storeRoot = cli.storeRoot;
+    options.storeSyncMode = store::parseStoreSyncMode(cli.storeSyncMode);
     options.medicineRun = cli.medicineProbeFlag || cli.medicineApplyFlag;
     options.medicineApply = cli.medicineApplyFlag;
     options.medicineCures = cli.medicineCures;
@@ -63,10 +85,13 @@ Gen0Options gen0OptionsFromCli(const CliParsedOptions& cli, Gen0CliIntent intent
     if (cli.jailbreakExecuteFlag && !cli.pongoProbeFlag && !cli.pongoBootFlag) {
         options.pongo.bootRun = true;
         options.pongo.execute = true;
+        options.ramdisk.deliveryRun = true;
     }
     options.kernelcachePath = cli.kernelcachePath;
     options.patchProfilePath = cli.patchProfilePath;
     options.patchOutPath = cli.patchOutPath;
+    options.externalJailbreak = cli.externalJailbreakFlag;
+    options.externalSkipHelper = cli.externalSkipHelperFlag;
 
     switch (intent) {
         case Gen0CliIntent::RecoveryChain:
@@ -75,6 +100,7 @@ Gen0Options gen0OptionsFromCli(const CliParsedOptions& cli, Gen0CliIntent intent
             break;
         case Gen0CliIntent::PongoBoot:
             options.pongo.bootRun = true;
+            options.ramdisk.deliveryRun = true;
             break;
         case Gen0CliIntent::Gen0:
         default:

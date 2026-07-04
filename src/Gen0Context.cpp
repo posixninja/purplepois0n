@@ -3,6 +3,7 @@
  */
 
 #include "Gen0Context.h"
+#include "RamdiskDelivery.h"
 #include "primitives/TssTypes.h"
 
 namespace PP {
@@ -53,15 +54,38 @@ primitives::ExecutionContext buildExecutionContext(DeviceState state,
         options.ramdisk.ident.empty() ? std::string("Erase") : options.ramdisk.ident;
     ctx.recoveryChain = options.recovery.chain;
     ctx.recoveryChainRun = options.recovery.chainRun;
-    ctx.pongoProbeRun = options.pongo.probeRun;
-    ctx.pongoBootRun = options.pongo.bootRun;
+    ctx.bootDeliveryRun = options.ramdisk.deliveryRun || options.pongo.bootRun;
+    ctx.bootDeliveryProbe = options.ramdisk.deliveryProbe || options.pongo.probeRun;
+    ctx.pongoProbeRun = options.pongo.probeRun || ctx.bootDeliveryProbe;
+    ctx.pongoBootRun = options.pongo.bootRun || ctx.bootDeliveryRun;
     ctx.pongoSpawnCheckra1n = options.pongo.spawnCheckra1n;
     ctx.pongoKpfPath = options.pongo.kpfPath;
-    ctx.pongoRamdiskDmgPath = options.pongo.ramdiskDmgPath;
-    if (ctx.pongoRamdiskDmgPath.empty() && !options.ramdisk.buildRamdiskPath.empty()) {
-        ctx.pongoRamdiskDmgPath = options.ramdisk.buildRamdiskPath;
+    if (ctx.pongoKpfPath.empty()) {
+        ctx.pongoKpfPath = resolveDefaultBootModulePath();
     }
+    ctx.ramdiskArtifactPath = options.ramdisk.artifactPath;
+    if (ctx.ramdiskArtifactPath.empty()) {
+        ctx.ramdiskArtifactPath = options.pongo.ramdiskDmgPath;
+    }
+    if (ctx.ramdiskArtifactPath.empty() && !options.ramdisk.buildRamdiskPath.empty()) {
+        ctx.ramdiskArtifactPath = options.ramdisk.buildRamdiskPath;
+    }
+    ctx.pongoRamdiskDmgPath = ctx.ramdiskArtifactPath;
     ctx.pongoXargsLine = options.pongo.xargsLine;
+    ctx.ramdiskArtifactFormat = options.ramdisk.artifactFormat;
+    ctx.bootDeliveryLane = options.ramdisk.deliveryLane;
+    ctx.bootModulePath = options.ramdisk.bootModulePath;
+    if (ctx.bootModulePath.empty()) {
+        ctx.bootModulePath = ctx.pongoKpfPath;
+    } else {
+        ctx.pongoKpfPath = ctx.bootModulePath;
+    }
+    ctx.bootArgsLine = options.ramdisk.bootArgsLine;
+    if (!ctx.bootArgsLine.empty()) {
+        ctx.pongoXargsLine = ctx.bootArgsLine;
+    } else if (!ctx.pongoXargsLine.empty()) {
+        ctx.bootArgsLine = ctx.pongoXargsLine;
+    }
     ctx.bypassIntegrityRun = options.bypassIntegrity;
     ctx.kernelcachePath = options.kernelcachePath;
     ctx.patchProfilePath = options.patchProfilePath;

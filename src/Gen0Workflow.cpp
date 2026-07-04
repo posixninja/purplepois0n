@@ -41,6 +41,11 @@
 #include "RamdiskInspector.h"
 #include "RamdiskClient.h"
 #include "BootromExploit.h"
+#include "ToolRunner.h"
+#include "EnvUtil.h"
+
+#include <cstdlib>
+#include <unistd.h>
 #include "../include/DeviceState.h"
 #include <fstream>
 #include <iostream>
@@ -747,23 +752,30 @@ bool runPostJbPipeline(DeviceManager& manager,
         return false;
     }
 
+    const bool storeOnly =
+        options.postJbStoreSync && options.ipaInstallPath.empty() &&
+        options.codesignInputPath.empty() && options.trustCachePath.empty() &&
+        !options.medicineRun && !options.medicineApply;
+
     std::string ipaToInstall = options.ipaInstallPath;
-    if (ipaToInstall.empty()) {
-        Logger::error("Post-jb pipeline requires --install-ipa PATH");
+    if (ipaToInstall.empty() && !storeOnly) {
+        Logger::error("Post-jb pipeline requires --install-ipa PATH (or use --post-jb-store for store-only)");
         return false;
     }
 
-    if (!options.codesignInputPath.empty()) {
-        const std::string signedOut =
-            options.codesignOutputPath.empty() ? (ipaToInstall + ".signed") : options.codesignOutputPath;
-        if (!runHostSignIpa(options.codesignInputPath, signedOut, options.codesign, true)) {
+    if (!ipaToInstall.empty()) {
+        if (!options.codesignInputPath.empty()) {
+            const std::string signedOut =
+                options.codesignOutputPath.empty() ? (ipaToInstall + ".signed") : options.codesignOutputPath;
+            if (!runHostSignIpa(options.codesignInputPath, signedOut, options.codesign, true)) {
+                return false;
+            }
+            ipaToInstall = signedOut;
+        }
+
+        if (!runSideloadInstall(manager, targetUDID, ipaToInstall, true)) {
             return false;
         }
-        ipaToInstall = signedOut;
-    }
-
-    if (!runSideloadInstall(manager, targetUDID, ipaToInstall, true)) {
-        return false;
     }
 
     if (!options.trustCachePath.empty()) {
@@ -798,7 +810,7 @@ bool runPostJbPipeline(DeviceManager& manager,
         } else {
             const std::string storeRoot =
                 options.storeRoot.empty() ? store::resolveStoreRoot() : options.storeRoot;
-            if (!runStoreSync(connect, storeRoot, true)) {
+            if (!runStoreSync(connect, storeRoot, true, options.storeSyncMode)) {
                 return false;
             }
             if (!options.postJbStoreInstallPkg.empty()) {
@@ -1031,13 +1043,24 @@ bool runStoreAdd(const std::string& storeRoot, const std::string& debPath) {
 }
 
 bool runStoreSync(const RamdiskConnectOptions& connect, const std::string& storeRoot,
-                  bool allowMutation) {
-    const store::StoreSyncResult synced = store::syncStoreToDevice(connect, storeRoot, allowMutation);
+                  bool allowMutation, store::StoreSyncMode mode) {
+    const store::StoreSyncResult synced =
+        store::syncStoreToDevice(connect, storeRoot, allowMutation, mode);
     if (!synced.success) {
         Logger::error("  [Store] " + synced.error);
         return false;
     }
     Logger::info("  [Store] device repo at " + synced.deviceStorePath);
+    return true;
+}
+
+bool runStoreListInstalled(const RamdiskConnectOptions& connect,
+                           std::vector<std::string>* packages) {
+    std::string error;
+    if (!store::listInstalledPackagesOnDevice(connect, packages, &error)) {
+        Logger::error("  [Store] " + error);
+        return false;
+    }
     return true;
 }
 
@@ -1360,10 +1383,14 @@ bool runDfuJailbreak(DeviceManager& manager, const Gen0Options& options, bool ex
     }
     Logger::info("Bootrom stage complete (" + BootromExploit::resultToString(pwn) + ")");
 
-    const bool runPongo =
-        options.pongo.bootRun || options.pongo.execute || options.jailbreakExecute;
+    const bool runPongo = options.ramdisk.deliveryRun || options.pongo.bootRun ||
+                          options.pongo.execute;
     if (!runPongo) {
-        Logger::info("Next: --pongo-execute with --pongo-kpf and --pongo-ramdisk (or --ipsw).");
+        if (options.jailbreakExecute) {
+            Logger::info("DFU bootrom stage complete — no usb-loader delivery requested.");
+        } else {
+            Logger::info("Next: --pongo-execute with --pongo-kpf and --pongo-ramdisk (or --ipsw).");
+        }
         return true;
     }
 
@@ -1376,5 +1403,110 @@ bool runDfuJailbreak(DeviceManager& manager, const Gen0Options& options, bool ex
     pongoOpts.pongo.bootRun = true;
     return runPongoBoot(pongoOpts, true);
 }
+
+bool runExternalJailbreakStoreSync(const RamdiskConnectOptions& connect,
+                                   const Gen0Options& options) {
+    if (!options.postJbStoreSync && options.postJbStoreInstallPkg.empty()) {
+        return true;
+    }
+    const std::string storeRoot =
+        options.storeRoot.empty() ? store::resolveStoreRoot() : options.storeRoot;
+    if (options.postJbStoreSync && !runStoreSync(connect, storeRoot, true, options.storeSyncMode)) {
+        return false;
+    }
+    if (!options.postJbStoreInstallPkg.empty() &&
+        !runStoreInstall(connect, options.postJbStoreInstallPkg, true)) {
+        return false;
+    }
+    return true;
+}
+
+std::string resolveExternalJailbreakScript() {
+    const char* fromEnv = std::getenv("PURPLEPOIS0N_EXTERNAL_JAILBREAK");
+    if (fromEnv != nullptr && fromEnv[0] != '\0') {
+        return std::string(fromEnv);
+    }
+    const char* candidates[] = {
+        "legacy/scripts/external-jailbreak.sh",
+        "./legacy/scripts/external-jailbreak.sh",
+    };
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i) {
+        if (access(candidates[i], X_OK) == 0) {
+            return std::string(candidates[i]);
+        }
+    }
+    return std::string();
+}
+
+bool runExternalJailbreak(DeviceManager& manager,
+                          const std::string& targetUDID,
+                          const Gen0Options& options) {
+    Logger::info("External jailbreak delegate (palera1n / checkra1n / pre-jailbroken)");
+
+    RamdiskConnectOptions connect = options.ramdisk.connect;
+    if (connect.udid.empty() && !targetUDID.empty()) {
+        connect.udid = targetUDID;
+    }
+
+    std::string iosVersion;
+    try {
+        auto device = manager.getMobileDevice(targetUDID);
+        if (device) {
+            iosVersion = device->getValue("", "ProductVersion");
+        }
+    } catch (const std::exception&) {
+    }
+
+    std::string summary;
+    if (runRootlessProbe(connect, targetUDID, iosVersion, &summary)) {
+        Logger::info("Device already jailbroken — " + summary);
+        return runExternalJailbreakStoreSync(connect, options);
+    }
+
+    if (options.externalSkipHelper) {
+        Logger::error("/var/jb not found — jailbreak with palera1n or Dopamine first");
+        Logger::info("  Or omit --already-jailbroken to run legacy/scripts/external-jailbreak.sh");
+        return false;
+    }
+
+    if (!primitives::exploitPluginsEnabled()) {
+        Logger::error("External jailbreak requires make plugins");
+        return false;
+    }
+
+    const std::string script = resolveExternalJailbreakScript();
+    if (script.empty()) {
+        Logger::error("External jailbreak script not found");
+        Logger::info("  Set PURPLEPOIS0N_EXTERNAL_JAILBREAK=legacy/scripts/external-jailbreak.sh");
+        return false;
+    }
+
+    Logger::info("  [External] spawning: " + script);
+    if (!targetUDID.empty()) {
+        setenv("PURPLEPOIS0N_DEVICE_UDID", targetUDID.c_str(), 1);
+    }
+
+    std::vector<std::string> argv;
+    argv.push_back(script);
+    const CommandResult result = ToolRunner::run(argv);
+    if (result.exitCode != 0) {
+        Logger::error("  [External] helper exit " + std::to_string(result.exitCode));
+        if (!result.stderrText.empty()) {
+            Logger::warn("  [External] stderr: " + result.stderrText);
+        }
+        return false;
+    }
+
+    Logger::info("  [External] helper finished — probing /var/jb");
+    if (!runRootlessProbe(connect, targetUDID, iosVersion, &summary)) {
+        Logger::error("Helper finished but /var/jb not reachable over SSH");
+        Logger::info("  Enable SSH (Dopamine/palera1n), iproxy 2222 22, PURPLEPOIS0N_NORMAL_SSH=1");
+        return false;
+    }
+
+    Logger::info("Jailbreak verified — " + summary);
+    return runExternalJailbreakStoreSync(connect, options);
+}
+
 
 } /* namespace PP */

@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: purplepois0n-tui
+Version: 0.1.0
+Summary: Terminal UI for purplepois0n
+Requires-Python: >=3.10
+Requires-Dist: rich>=13.0
+Requires-Dist: prompt-toolkit>=3.0
+Requires-Dist: httpx>=0.27

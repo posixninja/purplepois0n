@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="purplepois0n">
+  <defs>
+    <linearGradient id="pp-g" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4b5fd"/>
+      <stop offset="0.45" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#5b21b6"/>
+    </linearGradient>
+    <linearGradient id="pp-shine" x1="20" y1="14" x2="36" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#12121a"/>
+  <path
+    d="M32 12c-8.5 0-14 6.2-14 13.5 0 4.8 2.4 8.6 6.2 10.8L32 52l7.8-15.7c3.8-2.2 6.2-6 6.2-10.8C46 18.2 40.5 12 32 12z"
+    fill="url(#pp-g)"
+  />
+  <ellipse cx="26" cy="22" rx="5" ry="7" fill="url(#pp-shine)" transform="rotate(-18 26 22)"/>
+  <circle cx="32" cy="25" r="3.5" fill="#fff" fill-opacity="0.2"/>
+</svg>

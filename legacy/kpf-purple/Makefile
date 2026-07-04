@@ -5,7 +5,7 @@ ifndef PONGO_ROOT
 PONGO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../modern-era/PongoOS
 endif
 
-ifndef $(HOST_OS)
+ifndef HOST_OS
  ifeq ($(OS),Windows_NT)
   HOST_OS = Windows
  else

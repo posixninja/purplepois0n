@@ -1,5 +1,7 @@
 # Purplepois0n: Final Implementation Status
 
+> **For current product status, read [MVP.md](MVP.md) first.** This file is a historical implementation inventory (July 2026) and includes research stubs not on the MVP path.
+
 ## 🎉 Project Complete
 
 **Date:** July 2, 2026  

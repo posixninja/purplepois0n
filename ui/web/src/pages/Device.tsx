@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { CopyButton } from "../components/CopyButton";
 import { DeviceCard } from "../components/DeviceCard";
+import { PageHeader } from "../components/PageHeader";
 import { identityFromAgent, useDevice } from "../context/DeviceContext";
 import { useWebUsbDevice } from "../hooks/useWebUsbDevice";
 import { deviceLabel } from "../webusb/apple";
@@ -38,8 +39,10 @@ export function DevicePage() {
 
   return (
     <div className="page">
-      <h1>Device</h1>
-      <p className="lead">Connection status for your iPhone or iPad.</p>
+      <PageHeader
+        title="Device"
+        description="Connection status for your iPhone or iPad."
+      />
 
       {!identity && agentDevices.length === 0 ? (
         <div className="empty-state">

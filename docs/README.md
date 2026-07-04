@@ -12,6 +12,11 @@ The jailbreak **book** uses a shared **[L0–L6 depth ladder](book/DEPTH.md)** i
 
 | Document | Description |
 |----------|-------------|
+| **[MVP.md](MVP.md)** | **MVP scope** — scan/plan/execute, agent API, web wizard, honest status |
+| [validation/mvp-smoke.md](validation/mvp-smoke.md) | Pre-demo smoke checklist |
+| [STORE_ECOSYSTEM.md](STORE_ECOSYSTEM.md) | Package store staging, SSH sync, prod vs dev |
+| [DOCTOR.md](DOCTOR.md) | Doctor JSON protocol, GUI launchers, agent `/doctor` |
+| [AGENT_API.md](AGENT_API.md) | Localhost HTTP API reference (`:7749`) |
 | [SUPPORT.md](SUPPORT.md) | **Honest Gen 0 matrix** — what greenpois0n/absinthe did vs what is implemented today |
 | [BOOGERAIDS.md](BOOGERAIDS.md) | **boogeraids handoff** — `--analyze-json`, **ipswd** `:3993`, `external/ipsw` fallback |
 | [LINEAGE.md](LINEAGE.md) | Predecessors (greenpois0n, absinthe), what changed afterward, and purplepois0n’s role today |
@@ -42,14 +47,16 @@ See also [ARCHIVES.md](ARCHIVES.md) for clone policy and known failures (e.g. Ch
 
 ## Suggested reading order
 
-1. **[SUPPORT.md](SUPPORT.md)** — Capability matrix for Generation 0 (DFU, Recovery, backup parse vs restore, exploits).
-2. **[LINEAGE.md](LINEAGE.md)** — Start here if you are new to the project. It explains why purplepois0n exists and how it relates to greenpois0n and absinthe.
-3. **[GENERATIONS.md](GENERATIONS.md)** — Read when you need era-specific context (which mitigations appeared when, which jailbreak type was normal, which purplepois0n components apply).
-4. **[BACKPORT_MATRIX.md](BACKPORT_MATRIX.md)** — What modern host/framework work applies to older eras (Phase 7 roadmap).
-5. **[legacy/PHASE_STATUS.md](legacy/PHASE_STATUS.md)** — Integration phase rollup (Phases 0–7) and `src/` → doc lookup.
-6. **[book/DEPTH.md](book/DEPTH.md)** — How to read chapters at L0 vs L5; link to `book/deep/` code walkthroughs.
-7. **[book/README.md](book/README.md)** — Per-era chapters (L0–L6) with public source links (educational; not exploit recipes).
-8. **[../README.md](../README.md)** — Return to the root README for build instructions, CLI usage, and the [Development](../README.md#development) section on adding exploit code in `performJailbreak()`.
+1. **[MVP.md](MVP.md)** — Product MVP: planner, doctor, agent, web UI, exit criteria.
+2. **[../QUICKSTART.md](../QUICKSTART.md)** — Build and first run.
+3. **[SUPPORT.md](SUPPORT.md)** — Capability matrix for Generation 0 (DFU, Recovery, backup parse vs restore, exploits).
+4. **[LINEAGE.md](LINEAGE.md)** — Why purplepois0n exists and how it relates to greenpois0n and absinthe.
+5. **[GENERATIONS.md](GENERATIONS.md)** — Era-specific context (mitigations, jailbreak types, framework mapping).
+6. **[BACKPORT_MATRIX.md](BACKPORT_MATRIX.md)** — What modern host/framework work applies to older eras.
+7. **[legacy/PHASE_STATUS.md](legacy/PHASE_STATUS.md)** — Integration phase rollup and `src/` → doc lookup.
+8. **[book/DEPTH.md](book/DEPTH.md)** — How to read chapters at L0 vs L5; link to `book/deep/` walkthroughs.
+9. **[book/README.md](book/README.md)** — Per-era chapters with public source links.
+10. **[../README.md](../README.md)** — Root README: build, CLI, development.
 
 ## For contributors implementing exploits
 

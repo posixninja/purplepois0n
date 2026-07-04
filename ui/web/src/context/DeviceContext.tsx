@@ -19,6 +19,7 @@ interface DeviceContextValue {
   webUsbAvailable: boolean;
   agentOk: boolean;
   pluginsEnabled: boolean;
+  kpfBuilt: boolean;
   hasDevice: boolean;
   identity: DeviceIdentity | null;
   agentDevices: AgentDevice[];
@@ -42,6 +43,7 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   const [webUsbAvailable] = useState(() => webUsbSupported());
   const [agentOk, setAgentOk] = useState(false);
   const [pluginsEnabled, setPluginsEnabled] = useState(false);
+  const [kpfBuilt, setKpfBuilt] = useState(false);
   const [identity, setIdentity] = useState<DeviceIdentity | null>(null);
   const [agentDevices, setAgentDevices] = useState<AgentDevice[]>([]);
   const [selectedUdid, setSelectedUdid] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     const h = await agentHealth();
     setAgentOk(!!h?.ok);
     setPluginsEnabled(!!h?.plugins);
+    setKpfBuilt(!!h?.capabilities?.kpf?.built);
     if (h?.ok) {
       try {
         const devices = await listDevices();
@@ -88,6 +91,7 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
       webUsbAvailable,
       agentOk,
       pluginsEnabled,
+      kpfBuilt,
       hasDevice: !!identity || agentDevices.length > 0,
       identity,
       agentDevices,
@@ -102,6 +106,7 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
       webUsbAvailable,
       agentOk,
       pluginsEnabled,
+      kpfBuilt,
       identity,
       agentDevices,
       selectedUdid,

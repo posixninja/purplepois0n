@@ -1,5 +1,7 @@
 # Purplepois0n Complete Architecture
 
+> **Product MVP (scan → plan → execute + store):** [MVP.md](MVP.md). This document describes the full research framework layers.
+
 ## Overview
 
 Purplepois0n is a **unified bootrom-to-kernel experimental framework** that combines:

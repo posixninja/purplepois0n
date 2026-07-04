@@ -15,6 +15,7 @@ namespace primitives {
 class ChainRunner;
 
 bool runPongoChain(ExecutionContext& context, bool executeMode, ChainRunner& runner);
+bool runBootDeliveryChain(ExecutionContext& context, bool executeMode, ChainRunner& runner);
 
 struct ChainReport {
     ChainStage stage = ChainStage::Detect;
@@ -24,6 +25,8 @@ struct ChainReport {
 
 class ChainRunner {
     friend bool runPongoChain(ExecutionContext& context, bool executeMode, ChainRunner& runner);
+    friend bool runBootDeliveryChain(ExecutionContext& context, bool executeMode,
+                                     ChainRunner& runner);
 
 public:
     ChainRunner();
@@ -39,7 +42,10 @@ public:
     /** Write accumulated reports as JSON to @p path. */
     bool writeReportToFile(const std::string& path) const;
 
-    /** PongoOS probe/boot chain (USB 05ac:4141). */
+    /** Lane-dispatching boot delivery (ramdisk + optional module). */
+    bool runBootDeliveryMiniChain(ExecutionContext& context, bool executeMode);
+
+    /** @deprecated Use runBootDeliveryMiniChain — usb-loader lane only. */
     bool runPongoMiniChain(ExecutionContext& context, bool executeMode);
 
 private:

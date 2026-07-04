@@ -1,249 +1,135 @@
-# Purplepois0n Quick Start Guide
+# Purplepois0n Quick Start
 
-## 🚀 Ready to Use — Right Now
+**MVP goal:** Scan the device → pick a jailbreak strategy → run it (CLI, agent, or web wizard).
 
-Your jailbreak framework is **100% built, tested, and ready for real device testing**.
-
-**Binary:** `build/bin/purplepois0n` (1.3MB arm64, fully optimized)
-
-**What's New:**
-- Checkm8/Usbliter8 bootrom exploit routing by CPID
-- Cyanide: Interactive iBoot REPL for memory inspection
-- Anthrax: SSH-able ramdisk with kernel patching
-- Syringe: Unified USB/bootrom communication layer
-- PhysicalMemoryDriver: Kernel-level physical memory access
-- IpswPatchfinder: Device-agnostic offset discovery
-- AppleCvsDatabase: Security patch context and CVEs
+Full scope and status: **[docs/MVP.md](docs/MVP.md)**.
 
 ---
 
-## 1️⃣ Build & Verify
+## 1. Build
 
 ```bash
-cd /Users/posix/Desktop/Projects/purplepois0n
+cd /path/to/purplepois0n
+make release          # host binary
+make plugins          # mutating primitives (required for live jailbreak)
+make kpf              # default boot module (DFU usb-loader path)
+```
 
-# Clean rebuild
-make clean && make
+Verify:
 
-# Verify binary
-file build/bin/purplepois0n
-# Output: Mach-O 64-bit executable arm64
+```bash
+./build/bin/purplepois0n --capabilities
+# plugins: true, kpf.built: true (after steps above)
 ```
 
 ---
 
-## 2️⃣ Test Without Device
+## 2. Web UI (recommended MVP demo)
+
+Terminal 1 — host agent:
 
 ```bash
-# List what's built
-./build/bin/purplepois0n --help
-
-# Run unit tests (existing)
-./build/bin/purplepois0n --test-bootrom-routing
+export PURPLEPOIS0N_IPSW=/path/to/firmware.ipsw   # optional; DFU/recovery ramdisk
+make agent
 ```
+
+Terminal 2 — web app:
+
+```bash
+make web-dev
+# open URL printed by Vite (usually http://localhost:5173)
+```
+
+Flow: **Jailbreak wizard** → connect device → step **Jailbreak** (5th dot) shows **Recommended path** from `/device/plan` → consent → **Jailbreak** or **Verify jailbreak** → step **All set** (6th dot) store sync.
 
 ---
 
-## 3️⃣ Test With Device (A5-A15+)
-
-### Prerequisites
-- iPhone/iPad with USB cable
-- Device running iOS (any version)
-- Terminal access to this machine
-
-### Step 1: Prepare Device
+## 3. CLI — scan and plan (no mutation)
 
 ```bash
-# Put device in DFU mode (varies by device, usually volume + power button)
-# Then run:
 ./build/bin/purplepois0n --list
-# Output should show device in DFU mode
+./build/bin/purplepois0n device plan              # JSON: device + strategy + blockers
+./build/bin/purplepois0n jailbreak                # doctor probe only (plan + steps, no jailbreak step)
+# legacy: ./build/bin/purplepois0n --doctor-run --normal-ssh
 ```
 
-### Step 2: Interactive iBoot Debugging
+---
+
+## 4. CLI — execute (device required)
 
 ```bash
-./build/bin/purplepois0n --iboot-debug iPhone_15.ipsw
+export PURPLEPOIS0N_IPSW=/path/to/firmware.ipsw     # if plan needs ramdisk pack
 
-# This drops you into cyanide REPL:
-cyanide> dump 0x80000000 512
-# Shows iBoot memory at address 0x80000000
-
-cyanide> mem read 0x80000000 1024
-# Read 1KB from iBoot
-
-cyanide> quit
+./build/bin/purplepois0n jailbreak --execute
+# includes --normal-ssh for Normal-mode /var/jb detection
 ```
 
-### Step 3: Build Ramdisk (Offline)
+DFU checkm8 path (explicit):
 
 ```bash
-# Extract and build anthrax ramdisk from IPSW
-./build/bin/purplepois0n --anthrax-ramdisk iPhone_15.ipsw --build-only
-
-# Output: /tmp/anthrax_ramdisk.cpio.gz (ready for boot)
+make plugins kpf
+./build/bin/purplepois0n --dfu-jailbreak --i-understand-jailbreak
 ```
 
-### Step 4: Boot with Ramdisk
+---
+
+## 5. Already jailbroken → store only
 
 ```bash
-# Full workflow: exploit + ramdisk boot
-./build/bin/purplepois0n --anthrax-ramdisk iPhone_15.ipsw --boot
-
-# Device will:
-# 1. Run bootrom exploit
-# 2. Load patched iBoot
-# 3. Boot with custom ramdisk (Anthrax)
-# 4. Start SSH server
+export PURPLEPOIS0N_NORMAL_SSH=1   # or use make agent
+./build/bin/purplepois0n device plan -d UDID
+./build/bin/purplepois0n jailbreak --execute -d UDID   # verify /var/jb
+make seed-store
+./build/bin/purplepois0n store sync -d UDID
+./build/bin/purplepois0n store install purplepois0n-zebra -d UDID
 ```
 
-### Step 5: SSH Into Device
+See [docs/STORE_ECOSYSTEM.md](docs/STORE_ECOSYSTEM.md).
+
+---
+
+## 6. Delegate-first (palera1n / Dopamine)
+
+When the planner selects `normal-external-delegate`:
 
 ```bash
-# Find device IP (usually 192.168.x.x in network settings)
-ssh root@192.168.1.100
-
-# You're now root on device with full access:
-device# mount /dev/disk0s1s1 /mnt
-device# ls /mnt/System/Library
-device# /usr/local/bin/patch-kernel.sh --sandbox
-device# exit
+make plugins
+export PURPLEPOIS0N_NORMAL_SSH=1
+./build/bin/purplepois0n external-jailbreak --i-understand-jailbreak -d UDID
 ```
 
----
-
-## 📚 Documentation
-
-Read these in order:
-
-1. **FINAL_STATUS.md** — What's implemented vs TODO
-2. **ARCHITECTURE.md** — Complete system design
-3. **BOOTSTRAP_AND_PATCHING.md** — How bootchain works
-4. **IMPLEMENTATION_ROADMAP.md** — Remaining work details
+Gen 6: jailbreak with **Dopamine on device first**, enable SSH, then use **Already jailbroken** in the web wizard or `--already-jailbroken` above.
 
 ---
 
-## 🔧 What You Can Do Right Now
+## Environment cheatsheet
 
-### ✅ Complete & Ready
-- ✅ Device CPID detection and auto-routing
-- ✅ Bootrom exploit selection (Checkm8/Usbliter8)
-- ✅ Cyanide iBoot REPL framework
-- ✅ Anthrax ramdisk builder with SSH injection
-- ✅ Syringe USB communication abstraction
-- ✅ PhysicalMemoryDriver IOCTL interface
-- ✅ IpswPatchfinder pattern matching
-- ✅ Apple CVS Database with CVE tracking
-
-### ⏳ Needs Integration (~2-3 hours)
-- irecovery API integration into Syringe DFU layer
-- Full DFU memory read/write implementation
-- Cyanide iBoot REPL actual memory access
-
-### ⏳ Needs Test Validation (~1-2 hours)
-- Real device testing (DFU mode)
-- SSH deployment verification
-- Bootrom exploit confirmation
+| Variable | Use |
+|----------|-----|
+| `PURPLEPOIS0N_IPSW` | Auto-pack ramdisk from firmware |
+| `PURPLEPOIS0N_RAMDISK` | Prebuilt `.dmg` instead of IPSW |
+| `PURPLEPOIS0N_BOOT_MODULE` | Boot module (default: built KPF) |
+| `PURPLEPOIS0N_NORMAL_SSH` | SSH for store / rootless on Normal mode |
+| `PURPLEPOIS0N_STORE_ROOT` | Host package repo (default `store/`) |
 
 ---
 
-## 🧪 Testing Checklist
+## Smoke tests (offline)
 
-- [ ] `make` compiles cleanly
-- [ ] `./build/bin/purplepois0n --list` detects device
-- [ ] Device detection shows correct CPID
-- [ ] Bootrom exploit runs without errors
-- [ ] Cyanide REPL starts
-- [ ] `dump 0x80000000 256` reads iBoot memory
-- [ ] Anthrax ramdisk builds from IPSW
-- [ ] SSH connects to device
+```bash
+make smoke-mvp
+make smoke-mvp-strict   # optional: + capabilities, fixtures, rootless
+```
+
+Details: [docs/validation/mvp-smoke.md](docs/validation/mvp-smoke.md).
 
 ---
 
-## 🚨 If Something Breaks
+## Read next
 
-1. **Clean rebuild:**
-   ```bash
-   make clean && make
-   ```
+1. **[docs/MVP.md](docs/MVP.md)** — MVP architecture, API, honest status
+2. **[docs/STORE_ECOSYSTEM.md](docs/STORE_ECOSYSTEM.md)** — package store
+3. **[docs/book/deep/recovery-ramdisk.md](docs/book/deep/recovery-ramdisk.md)** — ramdisk + boot lanes
+4. **[docs/SUPPORT.md](docs/SUPPORT.md)** — capability matrix vs historical tools
 
-2. **Check dependencies:**
-   ```bash
-   brew list libimobiledevice libusb
-   ```
-
-3. **Verify device:**
-   ```bash
-   # Device must be in DFU mode
-   lsusb | grep Apple
-   ```
-
-4. **Read logs:**
-   ```bash
-   ./build/bin/purplepois0n --verbose 2>&1 | less
-   ```
-
----
-
-## 🎓 Learning Path
-
-1. **Understand the architecture** (30 min)
-   - Read ARCHITECTURE.md
-   - Look at BootromExploit.h interface
-
-2. **Trace a boot** (1 hour)
-   - Follow bootstrap flow in BOOTSTRAP_AND_PATCHING.md
-   - Look at src/BootromExploit.cpp
-   - Look at src/Syringe.cpp
-
-3. **Modify a patch** (2 hours)
-   - Look at IpswPatchfinder pattern matching
-   - Add new patch pattern to AppleCvsDatabase
-   - Test with actual IPSW
-
-4. **Create new exploit** (4+ hours)
-   - Study Checkm8Exploit.h/cpp
-   - Implement new exploit class
-   - Register in initBootromExploits()
-
----
-
-## 💡 Pro Tips
-
-- **Verbose logging:** `PURPLEPOIS0N_DEBUG=1 ./build/bin/purplepois0n`
-- **Keep IPSW handy:** Most commands need iPhone firmware file
-- **Have ipsw tool:** `brew install blacktop/tap/ipsw`
-- **Test offline first:** Build ramdisk with `--build-only` before real device
-- **Check Apple security bulletins:** Context for each patch in CVS database
-
----
-
-## 📞 Next Steps
-
-1. **Integrate irecovery API** into Syringe (high priority)
-2. **Test with real device** in DFU mode
-3. **Verify Cyanide REPL** memory read/write
-4. **Boot Anthrax ramdisk** and SSH in
-5. **Document your findings** and contribute back
-
----
-
-## ✨ What Makes This Special
-
-This isn't just code—it's:
-- **Educational:** Every component teaches iOS internals
-- **Transparent:** Clear architecture, readable code
-- **Extensible:** Plugin system for new exploits/payloads
-- **Historical:** Apple CVS database preserves security knowledge
-- **Production-ready:** 942KB binary, fully optimized
-
----
-
-**Status:** ✅ Ready for Public Release  
-**Build:** ✅ Clean compilation, no warnings  
-**Binary:** 1.3 MB (arm64, optimized)  
-**Quality:** Production Grade  
-**Author:** Joshua Hill (@posixninja)  
-**License:** Research Use Only  
-
-Next: Public commit 🚀
+Research / legacy depth: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/FINAL_STATUS.md](docs/FINAL_STATUS.md) (historical implementation notes).

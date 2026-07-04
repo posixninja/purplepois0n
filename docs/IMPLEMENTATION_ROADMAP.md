@@ -1,5 +1,26 @@
 # Implementation Roadmap
 
+> **MVP (scan → plan → execute):** see [MVP.md](MVP.md) and [validation/mvp-smoke.md](validation/mvp-smoke.md). Post-MVP work below.
+
+## MVP remainder (priority)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Web wizard + `/device/plan` | Done | JailbreakWizard plan card + auto doctor |
+| `JailbreakPlanner` + IPSW ramdisk auto | Done | `PURPLEPOIS0N_IPSW`, blockers in plan JSON |
+| Generic boot delivery | Done | `BootChain`, `UsbLoaderBootChainPrimitive` |
+| MVP docs + store journey | Done | `MVP.md`, `DOCTOR.md`, `STORE_ECOSYSTEM.md` MVP section |
+| `make smoke-mvp` aggregate | Done | kpf, dfu, store, doctor, agent, device-plan, web-build |
+| `device plan` subcommand | Done | Rewrites to `--device-plan` |
+| Gen6 in-tree full execute | Partial | Probe chain; not parity with Dopamine |
+| Normal `/var/jb` detection via SSH in planner | Done | Agent sets `PURPLEPOIS0N_NORMAL_SSH`; planner uses SSH transport |
+| Doctor execute + store sync for already-jailbroken | Done | Planner `postJbStoreSync` + merge SSH connect |
+| Agent API reference doc | Done | [AGENT_API.md](AGENT_API.md) |
+| Live DFU E2E on hardware | Manual | Needs device + plugins + IPSW |
+| In-tree LLM agent | Out of scope | Use agent HTTP JSON; external LLM optional |
+
+---
+
 ## Current Status
 
 ✅ **Foundation (COMPLETE)**

@@ -20,9 +20,11 @@ if [[ ! -x "${BIN}" ]]; then
   exit 1
 fi
 
-echo "--- help documents --dfu-jailbreak"
+echo "--- help documents dfu-jailbreak"
 HELP="$("${BIN}" --help 2>&1)"
-echo "${HELP}" | grep -q -- '--dfu-jailbreak'
+DEV_HELP="$("${BIN}" dev --help 2>&1)"
+echo "${HELP}" | grep -q 'dfu-jailbreak'
+echo "${DEV_HELP}" | grep -q -- '--dfu-jailbreak'
 
 echo "--- guard requires --i-understand-jailbreak"
 GUARD="$("${BIN}" --dfu-jailbreak 2>&1 || true)"

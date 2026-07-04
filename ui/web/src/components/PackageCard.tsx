@@ -1,6 +1,14 @@
 import type { AptPackage } from "../lib/packages";
 
-export function PackageCard({ pkg, onClick }: { pkg: AptPackage; onClick: () => void }) {
+export function PackageCard({
+  pkg,
+  installed,
+  onClick,
+}: {
+  pkg: AptPackage;
+  installed?: boolean;
+  onClick: () => void;
+}) {
   const initial = pkg.package.charAt(0).toUpperCase();
   return (
     <button type="button" className="package-card" onClick={onClick}>
@@ -8,7 +16,10 @@ export function PackageCard({ pkg, onClick }: { pkg: AptPackage; onClick: () => 
         {initial}
       </div>
       <div className="package-body">
-        <div className="package-name">{pkg.package}</div>
+        <div className="package-name-row">
+          <div className="package-name">{pkg.package}</div>
+          {installed && <span className="package-installed-badge">Installed</span>}
+        </div>
         <div className="package-meta">
           {pkg.version}
           {pkg.architecture ? ` · ${pkg.architecture}` : ""}

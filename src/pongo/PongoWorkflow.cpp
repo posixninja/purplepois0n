@@ -36,7 +36,9 @@ bool runPongoBoot(const Gen0Options& options, bool allowMutation) {
 
     const bool ok = runner.runPongoMiniChain(ctx, allowMutation);
     if (!options.reportPath.empty()) {
-        (void)runner.writeReportToFile(options.reportPath);
+        if (!runner.writeReportToFile(options.reportPath)) {
+            Logger::warn("Failed to write chain report: " + options.reportPath);
+        }
     }
     return ok;
 }

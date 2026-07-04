@@ -1,8 +1,26 @@
 # Gen 0 support matrix (greenpois0n / absinthe)
 
-purplepois0n is a **research framework**, not a shipping replacement for Chronic Dev Team tools. This table states what historical tools did versus what this repository implements today. For exploit integration boundaries, see [LINEAGE.md](LINEAGE.md) and [book/DEPTH.md](book/DEPTH.md).
+purplepois0n is a **research framework**, not a shipping replacement for Chronic Dev Team tools. This table states what historical tools did versus what this repository implements today. For the **MVP product path** (planner + doctor + store), see [MVP.md](MVP.md). For exploit integration boundaries, see [LINEAGE.md](LINEAGE.md) and [book/DEPTH.md](book/DEPTH.md).
 
 **Out of scope in-tree:** limera1n, SHAtter, absinthe payloads, weaponized backup generation, iTunes backup restore to stage exploits, and any complete untether install.
+
+## MVP product path (July 2026)
+
+| Capability | Status | Entry |
+|------------|--------|-------|
+| Device scan (USB modes) | **Implemented** | `DeviceManager`, Syringe |
+| Jailbreak strategy planner | **Implemented** | `JailbreakPlanner`, `--device-plan`, `device plan` |
+| Doctor scan → plan → execute | **Implemented** | `--doctor-run`, `jailbreak [--execute]`; probe stops after plan |
+| Recovery ramdisk execute | **Partial** | `jailbreak --execute` sets `recovery.execute`; needs hardware + IPSW |
+| Generic boot delivery (ramdisk + module + lane) | **Implemented** | `RamdiskDelivery`, `BootChain`, usb-loader primitive |
+| IPSW ramdisk auto-resolve | **Implemented** | `PURPLEPOIS0N_IPSW` in plan JSON |
+| Localhost agent API | **Implemented** | `ui/agent/purple_agent.py` (`GET /device/plan`, `POST /jailbreak`) |
+| Web jailbreak wizard | **Implemented** | `ui/web` — plan card + auto doctor + store step |
+| Rootless apt store + SSH sync | **Implemented** | `store sync|install`, wizard step 5 |
+| Gen6 in-tree full execute | **Partial** | Probe chain only; delegate for shipping path |
+| In-tree LLM planner | **NOT** | External LLM may consume plan JSON via agent |
+
+Details: [MVP.md](MVP.md), [DOCTOR.md](DOCTOR.md), [STORE_ECOSYSTEM.md](STORE_ECOSYSTEM.md). Offline validation: `make smoke-mvp`.
 
 ## Capability matrix
 
@@ -55,14 +73,16 @@ purplepois0n is a **research framework**, not a shipping replacement for Chronic
 | futurerestore restore spawn | futurerestore | — | **Partial** — `--futurerestore-restore --i-understand-restore` (make plugins) |
 | In-memory HFS+ ramdisk builder | anthrax `template.dmg` | — | **Done** — `HfsPlusWriter`, `--build-ramdisk`, ipsw-validated catalog |
 | IPSW RestoreRamDisk mutate + IM4P | greenpois0n staging | — | **Done** — stock extract + overlay merge, `--ramdisk-from-ipsw` |
-| Recovery iBSS→iBEC→rdsk chain | idevicerestore FSM | — | **Done** — `RecoveryBootChainPrimitive`, `--recovery-chain` / `--recovery-execute`, optional `go` |
+| Recovery iBSS→iBEC→rdsk chain | idevicerestore FSM | — | **Done** — probe; **execute** via `jailbreak --execute` when plugins + IPSW (partial on hardware) |
 | Live ramdisk upload / exec | jailbreak/custom rdsk only | — | **Partial** — TCP/SSH client + `--ramdisk-add`; user-supplied device agent |
 
 ## CLI surfaces (Gen 0)
 
 | Flag | Purpose |
 |------|---------|
-| `--gen0` | Run Generation 0 scaffold: detect mode, connect where possible, log honest gaps |
+| `--device-plan` / `device plan` | JSON scan + jailbreak strategy (probe only) |
+| `jailbreak` / `--doctor-run` | Doctor probe: plan JSON + steps; no jailbreak step |
+| `jailbreak --execute` | Doctor execute (planner merge + mutating path) |
 | `--analyze-backup PATH` | Offline `MobileBackup` report (domains, counts, metadata); no restore |
 | `--analyze-crash PATH` | Offline crash-log ASLR slide table (absinthe-era research; no staging) |
 | `--analyze-binary PATH` | Offline Mach-O report; `--arch arm32\|arm64` for fat binaries |
@@ -138,6 +158,8 @@ With a connected device:
 
 | Mode | Command | Expected |
 |------|---------|----------|
+| Any | `./build/bin/purplepois0n device plan -d UDID` | JSON with `device`, `plan.strategy`, optional `blockers` |
+| Any | `./build/bin/purplepois0n jailbreak -d UDID` | NDJSON doctor steps ending in `plan` |
 | DFU | `./build/bin/purplepois0n --gen0 --report /tmp/dfu.json` | `[Detect]`/`[Probe]` stages; Bootrom CPID line; no external tool unless `-m` |
 | Recovery | `./build/bin/purplepois0n --gen0` | Recovery ECID logged; `[Probe]` offline codesign probe |
 | Normal (trusted) | `./build/bin/purplepois0n --gen0 --report /tmp/n.json` | `[Normal] installed apps: N`; Injection/AFC probe |

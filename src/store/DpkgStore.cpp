@@ -619,16 +619,7 @@ StorePublishResult publishRepository(const std::string& storeRoot, const std::st
     }
 
     const std::string nginxHint = joinPath(dest, "README-hosting.txt");
-    const std::string hintBody =
-        "purplepois0n apt repo — serve this directory over HTTPS.\n\n"
-        "nginx example:\n"
-        "  location / {\n"
-        "    root /path/to/this/dir;\n"
-        "    autoindex off;\n"
-        "  }\n\n"
-        "Device sources.list.d entry:\n"
-        "  deb [trusted=yes] https://YOUR_HOST/ " +
-        std::string(kSuite) + " " + std::string(kComponent) + "\n";
+    const std::string hintBody = hostingReadmeText(dest);
     if (!writeStringToFile(nginxHint, hintBody)) {
         Logger::warn("  [Store] could not write " + nginxHint);
     }
@@ -641,6 +632,47 @@ StorePublishResult publishRepository(const std::string& storeRoot, const std::st
 std::string aptSourceLine(const std::string& jbroot) {
     const std::string storePath = deviceStorePath(jbroot);
     return std::string("deb [trusted=yes] file://") + storePath + " " + kSuite + " " + kComponent;
+}
+
+std::string resolveRepoUrl() {
+    std::string url = envOrEmpty("PURPLEPOIS0N_REPO_URL");
+    if (url.empty()) {
+        url = "https://YOUR_HOST/purplepois0n-repo/";
+    }
+    while (!url.empty() && url.back() == '/') {
+        url.pop_back();
+    }
+    return url + "/";
+}
+
+std::string aptHttpsSourceLine() {
+    return std::string("deb [trusted=yes] ") + resolveRepoUrl() + kSuite + " " + kComponent;
+}
+
+std::string hostingReadmeText(const std::string& publishRoot) {
+    const std::string repoUrl = resolveRepoUrl();
+    std::ostringstream body;
+    body << "purplepois0n apt repo — serve this directory over HTTPS.\n\n";
+    if (!publishRoot.empty()) {
+        body << "Publish directory: " << publishRoot << "\n\n";
+    }
+    body << "1. Upload entire directory to static HTTPS host:\n\n";
+    body << "   rsync -avz \"" << (publishRoot.empty() ? "/path/to/store-publish" : publishRoot)
+         << "/\" user@server:/var/www/purplepois0n-repo/\n\n";
+    body << "2. nginx location block:\n\n";
+    body << "   location /purplepois0n-repo/ {\n";
+    body << "     alias /var/www/purplepois0n-repo/;\n";
+    body << "     autoindex off;\n";
+    body << "   }\n\n";
+    body << "3. Device apt source (/var/jb/etc/apt/sources.list.d/purplepois0n.list):\n\n";
+    body << "   " << aptHttpsSourceLine() << "\n\n";
+    body << "4. On device:\n\n";
+    body << "   apt update\n";
+    body << "   apt install purplepois0n-smoke purplepois0n-zebra purplepois0n-sources\n\n";
+    body << "5. Dev SSH file mirror (alternative to HTTPS):\n\n";
+    body << "   ./build/bin/purplepois0n store sync --store-sync-mode file --normal-ssh -d YOUR_UDID\n\n";
+    body << "Set PURPLEPOIS0N_REPO_URL before seed-store.sh to bake URL into purplepois0n-sources.\n";
+    return body.str();
 }
 
 bool addDebToPool(const std::string& storeRoot, const std::string& debPath, std::string* error) {
