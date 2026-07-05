@@ -210,7 +210,8 @@ make smoke-mvp-strict   # + capabilities, fixtures, rootless layout
 
 With device (manual):
 
-- [ ] `--device-plan` shows expected strategy for your mode (DFU vs Normal)
+- [x] Offline CI gate (`make smoke-mvp-strict`) — signed off 2026-07-04
+- [ ] `--device-plan` shows expected strategy for your mode (DFU vs Normal) — needs `PURPLEPOIS0N_DEVICE_UDID`
 - [ ] `--doctor-run` (probe) completes step JSON
 - [ ] DFU: `--doctor-run --jailbreak-execute --i-understand-jailbreak` with `PURPLEPOIS0N_IPSW` set
 - [ ] Normal + existing jb: store sync installs a package
