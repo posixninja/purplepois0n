@@ -9,16 +9,25 @@ make release
 make smoke-mvp
 ```
 
-Extended (capabilities + rootless layout + parser fixtures):
+Extended (capabilities + rootless layout + parser fixtures + MVP gap invariants):
 
 ```bash
 make smoke-mvp-strict
 ```
 
+Optional live device (set `PURPLEPOIS0N_DEVICE_UDID` first):
+
+```bash
+make smoke-hardware-validation
+```
+
 | Target | Validates |
 |--------|-----------|
 | `smoke-mvp` | **All rows below** + `web-build` |
-| `smoke-mvp-strict` | `smoke-mvp` + `smoke-capabilities` + `smoke-rootless-layout` + `test-fixtures` |
+| `smoke-mvp-strict` | `smoke-mvp` + `smoke-capabilities` + `smoke-rootless-layout` + `smoke-mvp-gaps` + `smoke-recovery-chain` + `test-fixtures` |
+| `smoke-mvp-gaps` | Offline gap A/B/C source + pongo-boot report |
+| `smoke-recovery-chain` | Recovery planner chain from IPSW + CLI flags |
+| `smoke-hardware-validation` | `smoke-mvp-gaps` + DFU wiring + optional live UDID checks |
 | `smoke-kpf` | KPF builds; patchfinder test binary |
 | `smoke-dfu-jailbreak` | DFU help, guard flags, KPF path |
 | `smoke-dpkg-store` | Store init/build/Packages index |
@@ -106,7 +115,15 @@ make smoke-store-device    # store sync + install only
 | DFU checkm8 | `device plan` + `jailbreak --execute` + IPSW/KPF/plugins | Bootrom + usb-loader |
 | DFU usbliter8 | Same on A12 DFU | Bootrom usbliter8 only, no Pongo |
 | Hardware store | `PURPLEPOIS0N_DEVICE_UDID=… make smoke-e2e-delegate` | sync + smoke package |
+| Recovery chain | `device plan` in Recovery + `PURPLEPOIS0N_IPSW` | `recoveryChain[]` in plan JSON |
 | Fixtures | `make test-fixtures` | Chain report JSON, no crash |
+
+## Hardware sign-off log
+
+| Date | Device / mode | Result | Notes |
+|------|---------------|--------|-------|
+| 2026-07-04 | Offline CI | Pass | `make smoke-mvp-strict`, `smoke-mvp-gaps`, `smoke-recovery-chain`, `smoke-hardware-validation` (no UDID — live steps skipped) |
+| — | Normal already-JB | Pending | Set `PURPLEPOIS0N_DEVICE_UDID` + `make smoke-hardware-validation` |
 
 ## Failure triage
 

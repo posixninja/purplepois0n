@@ -14,10 +14,26 @@
 | `device plan` subcommand | Done | Rewrites to `--device-plan` |
 | Gen6 in-tree full execute | Partial | Probe chain; not parity with Dopamine |
 | Normal `/var/jb` detection via SSH in planner | Done | Agent sets `PURPLEPOIS0N_NORMAL_SSH`; planner uses SSH transport |
-| Doctor execute + store sync for already-jailbroken | Done | Planner `postJbStoreSync` + merge SSH connect |
+| Doctor execute for already-jailbroken | Done | Verify probes `/var/jb` only; store via wizard **All set**, `--post-jb-store`, or agent `post_jb_store` (not planner default) |
 | Agent API reference doc | Done | [AGENT_API.md](AGENT_API.md) |
 | Live DFU E2E on hardware | Manual | Needs device + plugins + IPSW |
 | In-tree LLM agent | Out of scope | Use agent HTTP JSON; external LLM optional |
+
+---
+
+## Post-MVP priority (recommended)
+
+Shippable MVP is complete (`make smoke-mvp-strict`). Pick **one** lane next:
+
+| Priority | Lane | Why | Entry point |
+|----------|------|-----|-------------|
+| 1 | **Hardware sign-off** | Proves scan→plan→execute→store on real devices | `make smoke-hardware-validation` + [validation/mvp-smoke.md](validation/mvp-smoke.md) |
+| 2 | **Recovery hardening** | Planner + `recovery.execute` wired; needs IPSW/TSS live testing | `recovery-ramdisk-chain`, [recovery-ramdisk.md](book/deep/recovery-ramdisk.md) |
+| 3 | **Usbliter8 bridge docs + ctl** | A12/A13 DFU bootrom-only in-tree; demote/boot needs RP2350 + `usbliter8ctl` | [Usbliter8.cpp](../src/Usbliter8.cpp), README |
+| 4 | **Gen6 in-tree execute** | Largest scope; delegate path ships today | [Gen6PostExploitModules.cpp](../src/primitives/Gen6PostExploitModules.cpp) |
+| 5 | **Syringe / Cyanide / Anthrax** | Research tooling, not demo path | [Syringe.cpp](../src/Syringe.cpp), Phase 1 below |
+
+**Default recommendation:** hardware sign-off first, then recovery hardening (unblocks more CPIDs without Dopamine parity).
 
 ---
 

@@ -8,6 +8,7 @@
 #include "DeviceManager.h"
 #include "EnvUtil.h"
 #include "RamdiskDelivery.h"
+#include "RamdiskWorkDir.h"
 #include "Syringe.h"
 #include "Usbliter8.h"
 #include "pongo/PongoDevice.h"
@@ -141,6 +142,44 @@ void applyRamdiskDefaults(JailbreakPlan* plan) {
     }
 
     addBlocker(plan, "ramdisk required — set PURPLEPOIS0N_IPSW or PURPLEPOIS0N_RAMDISK");
+}
+
+void applyRecoveryChainDefaults(JailbreakPlan* plan) {
+    if (plan == nullptr || !plan->useRecoveryChain) {
+        return;
+    }
+    if (plan->options.ipswPath.empty()) {
+        return;
+    }
+    const std::string workDir = resolveRamdiskWorkDir(plan->options.ramdisk.workDir);
+    if (!populateDefaultRecoveryChain(plan->options.ipswPath, workDir,
+                                      &plan->options.recovery.chain)) {
+        addBlocker(plan, "recovery chain: could not build stages from IPSW");
+        return;
+    }
+    bool hasIbss = false;
+    bool hasIbec = false;
+    for (size_t i = 0; i < plan->options.recovery.chain.size(); ++i) {
+        if (plan->options.recovery.chain[i].fourcc == "iBSS") {
+            hasIbss = true;
+        }
+        if (plan->options.recovery.chain[i].fourcc == "iBEC") {
+            hasIbec = true;
+        }
+    }
+    if (!hasIbss) {
+        addBlocker(plan, "recovery chain: iBSS not found in IPSW");
+    }
+    if (!hasIbec) {
+        addBlocker(plan, "recovery chain: iBEC not found in IPSW");
+    }
+    const std::string apticket = envOrEmpty("PURPLEPOIS0N_APTICKET");
+    const std::string im4m = envOrEmpty("PURPLEPOIS0N_IM4M_MANIFEST");
+    if (apticket.empty() && im4m.empty()) {
+        addBlocker(plan,
+                   "TSS/apticket recommended — set PURPLEPOIS0N_APTICKET or "
+                   "PURPLEPOIS0N_IM4M_MANIFEST for personalized recovery upload");
+    }
 }
 
 } /* anonymous */
@@ -312,6 +351,8 @@ JailbreakPlan planJailbreak(const DeviceProfile& profile, const HostCapabilities
 
     applyRamdiskDefaults(&plan);
 
+    applyRecoveryChainDefaults(&plan);
+
     if (!plan.alreadyJailbroken && plan.useExternalDelegate &&
         plan.strategyId == "normal-external-delegate" &&
         envFlagEnabled("PURPLEPOIS0N_POST_JB_STORE")) {
@@ -345,6 +386,7 @@ void mergePlanIntoOptions(Gen0Options* options, const JailbreakPlan& plan) {
     if (plan.useRecoveryChain) {
         options->recovery.chainRun = plan.options.recovery.chainRun;
         options->recovery.execute = plan.options.recovery.execute;
+        options->recovery.chain = plan.options.recovery.chain;
         if (options->jailbreakExecute) {
             options->recovery.execute = true;
         }
@@ -419,6 +461,21 @@ std::string jailbreakPlanToJson(const DeviceProfile& profile, const JailbreakPla
     }
     if (!plan.ramdiskSource.empty()) {
         json << ",\"ramdiskSource\":\"" << jsonEscape(plan.ramdiskSource) << "\"";
+    }
+    if (plan.useRecoveryChain && !plan.options.recovery.chain.empty()) {
+        json << ",\"recoveryChain\":[";
+        for (size_t i = 0; i < plan.options.recovery.chain.size(); ++i) {
+            if (i > 0) {
+                json << ',';
+            }
+            const auto& stage = plan.options.recovery.chain[i];
+            json << "{\"fourcc\":\"" << jsonEscape(stage.fourcc) << "\"";
+            if (!stage.ipswComponentPath.empty()) {
+                json << ",\"component\":\"" << jsonEscape(stage.ipswComponentPath) << "\"";
+            }
+            json << "}";
+        }
+        json << "]";
     }
     json << ",\"blockers\":[";
     for (size_t i = 0; i < plan.blockers.size(); ++i) {

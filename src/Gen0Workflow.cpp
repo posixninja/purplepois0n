@@ -103,7 +103,7 @@ void logRecoveryGap(uint64_t ecid, RecoveryDevice* device) {
         }
     }
     Logger::warn("iBoot exploit chain and restore FSM — NOT implemented.");
-    Logger::info("Recovery ramdisk builder + multi-stage chain — Partial (see recovery-ramdisk.md).");
+    Logger::info("Recovery multi-stage chain — planner fills iBSS/iBEC/rdsk from IPSW (see recovery-ramdisk.md).");
     Logger::info("Historical greenpois0n used DFU bootrom entry first; Recovery is secondary.");
 }
 

@@ -2,7 +2,13 @@
 
 Host-side custom HFS+ ramdisk creation without `hdiutil attach` or anthrax `template.dmg`. Artifacts are assembled in memory and written to disk at each stage.
 
-**MVP integration:** The planner auto-resolves ramdisk from `PURPLEPOIS0N_IPSW` or `PURPLEPOIS0N_RAMDISK`; boot delivery is lane-agnostic. See [MVP.md](../../MVP.md).
+**MVP integration:** The planner auto-resolves ramdisk from `PURPLEPOIS0N_IPSW` or `PURPLEPOIS0N_RAMDISK`, builds `recoveryChain[]` (iBSS → iBEC → RestoreRamDisk) via `populateDefaultRecoveryChain`, and surfaces TSS/apticket blockers when `PURPLEPOIS0N_APTICKET` / `PURPLEPOIS0N_IM4M_MANIFEST` are unset. Boot delivery is lane-agnostic. See [MVP.md](../../MVP.md).
+
+```bash
+export PURPLEPOIS0N_IPSW=/path/to/stock.ipsw
+./build/bin/purplepois0n device plan   # Recovery device → recoveryChain in JSON
+make smoke-recovery-chain
+```
 
 ## Phase A — In-memory HFS+ builder
 

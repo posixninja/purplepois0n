@@ -165,8 +165,10 @@ help:
 	@echo "  smoke-device-plan - --device-plan flag + JSON contract"
 	@echo "  smoke-capabilities - --capabilities JSON contract"
 	@echo "  smoke-mvp         - all offline MVP smokes + web build"
-	@echo "  smoke-mvp-strict  - smoke-mvp + capabilities + rootless + test-fixtures"
+	@echo "  smoke-mvp-strict  - smoke-mvp + capabilities + rootless + mvp-gaps + test-fixtures"
 	@echo "  smoke-e2e-delegate - hardware: already-jb store sync (needs UDID)"
+	@echo "  smoke-hardware-validation - gap invariants + optional live device (UDID)"
+	@echo "  smoke-recovery-chain      - recovery planner + CLI wiring smoke"
 	@echo "  smoke-doctor / smoke-agent - Doctor + localhost agent"
 	@echo "  LIBTATSU=1 - Link libtatsu for in-tree live TSS (brew install libtatsu)"
 	@echo "  LIBUSB=1   - Link libusb for PongoOS USB (brew install libusb)"
@@ -265,7 +267,7 @@ smoke-mvp: release
 	@echo "smoke-mvp: all offline MVP checks passed"
 
 smoke-mvp-strict: smoke-mvp
-	@$(MAKE) smoke-capabilities smoke-rootless-layout test-fixtures
+	@$(MAKE) smoke-capabilities smoke-rootless-layout smoke-mvp-gaps smoke-recovery-chain test-fixtures
 	@echo "smoke-mvp-strict: extended offline checks passed"
 
 web-install:
@@ -295,6 +297,18 @@ seed-store: $(TARGET)
 smoke-e2e-delegate:
 	bash tests/smoke_e2e_delegate.sh
 
+smoke-mvp-gaps:
+	@chmod +x tests/smoke_mvp_gaps.sh 2>/dev/null || true
+	@tests/smoke_mvp_gaps.sh
+
+smoke-recovery-chain: $(TARGET)
+	@chmod +x tests/smoke_recovery_chain.sh 2>/dev/null || true
+	@tests/smoke_recovery_chain.sh
+
+smoke-hardware-validation: $(TARGET)
+	@chmod +x tests/smoke_mvp_gaps.sh tests/smoke_hardware_validation.sh tests/smoke_dfu_jailbreak.sh tests/smoke_e2e_delegate.sh tests/smoke_recovery_chain.sh 2>/dev/null || true
+	@tests/smoke_hardware_validation.sh
+
 smoke-store-device: $(TARGET)
 	@chmod +x tests/smoke_store_device.sh 2>/dev/null || true
 	@tests/smoke_store_device.sh
@@ -305,4 +319,4 @@ tui-install:
 tui: tui-install
 	@cd ui/tui && .venv/bin/python -m purplepois0n_tui
 
-.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss smoke-host-patch kpf smoke-kpf smoke-kpf-data-only smoke-dtree-mmio smoke-dfu-jailbreak smoke-medicine smoke-dpkg-store smoke-doctor smoke-device-plan smoke-capabilities smoke-rootless-layout smoke-mvp smoke-mvp-strict web-install web-dev web-build agent smoke-web smoke-agent seed-store smoke-store-device smoke-e2e-delegate tui-install tui
+.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss smoke-host-patch kpf smoke-kpf smoke-kpf-data-only smoke-dtree-mmio smoke-dfu-jailbreak smoke-medicine smoke-dpkg-store smoke-doctor smoke-device-plan smoke-capabilities smoke-rootless-layout smoke-mvp-gaps smoke-recovery-chain smoke-hardware-validation smoke-mvp smoke-mvp-strict web-install web-dev web-build agent smoke-web smoke-agent seed-store smoke-store-device smoke-e2e-delegate tui-install tui
