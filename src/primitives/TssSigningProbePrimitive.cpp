@@ -54,6 +54,10 @@ PrimitiveResult TssSigningProbePrimitive::execute(ExecutionContext& context) {
             return PrimitiveResult::PrerequisitesMissing;
         }
         TssDelegate::runFuturerestoreRestore(context, false);
+    } else if (!context.ipswPath.empty() &&
+               TssDelegate::resolveSigningMode(context) == TssSigningMode::StockLive &&
+               TssDelegate::isIdevicerestoreConfigured()) {
+        TssDelegate::runIdevicerestoreRestore(context, false);
     }
     return probeResult;
 }

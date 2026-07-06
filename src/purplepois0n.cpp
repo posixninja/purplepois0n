@@ -97,6 +97,28 @@ static void printUsage(const char* programName) {
               << std::endl;
     std::cout << "  --no-baseband              futurerestore: skip baseband (Wi‑Fi-only devices)"
               << std::endl;
+    std::cout << "  --update                   futurerestore/idevicerestore: OTA-style update install"
+              << std::endl;
+    std::cout << "  --wait                     futurerestore: ApNonce collision loop (-w)"
+              << std::endl;
+    std::cout << "  --use-pwndfu               futurerestore: Odysseus restore from pwned DFU"
+              << std::endl;
+    std::cout << "  --just-boot                futurerestore: tethered boot only (no full restore)"
+              << std::endl;
+    std::cout << "  --just-boot-args LINE      boot-args after --just-boot (e.g. \"-v\")"
+              << std::endl;
+    std::cout << "  --exit-recovery            futurerestore: exit recovery and quit (-e)"
+              << std::endl;
+    std::cout << "  --debug-restore            Verbose futurerestore/idevicerestore logging"
+              << std::endl;
+    std::cout << "  --sep PATH                 futurerestore: manual SEP.im4p (-s)"
+              << std::endl;
+    std::cout << "  --sep-manifest PATH        futurerestore: SEP BuildManifest (-m)"
+              << std::endl;
+    std::cout << "  --baseband PATH            futurerestore: manual baseband (-b)"
+              << std::endl;
+    std::cout << "  --baseband-manifest PATH   futurerestore: baseband BuildManifest (-p)"
+              << std::endl;
     std::cout << "  --sep-ipsw PATH            IPSW for latest SEP BuildManifest (libtatsu / futurerestore)"
               << std::endl;
     std::cout << "  --bb-ipsw PATH             IPSW for latest baseband BuildManifest"
@@ -214,6 +236,8 @@ static void printUsage(const char* programName) {
     std::cout << "  --medicine-app PATH          App bundle path for sachet register"
               << std::endl;
     std::cout << "  --futurerestore-restore      Spawn futurerestore (requires --i-understand-restore)"
+              << std::endl;
+    std::cout << "  --idevicerestore-restore     Spawn idevicerestore stock restore (same ack)"
               << std::endl;
     std::cout << "  --i-understand-restore       Acknowledge destructive restore with futurerestore"
               << std::endl;
@@ -534,6 +558,7 @@ int main(int argc, char* argv[]) {
     std::string ipswPath;
     std::string apticketPath;
     FutureRestoreOptions futureRestoreCli;
+    primitives::IdeviceRestoreOptions ideviceRestoreCli;
     std::string im4mManifestPath;
     std::string ipswComponentPath;
     std::string recoveryUploadPath;
@@ -599,6 +624,7 @@ int main(int argc, char* argv[]) {
     std::string medicineCapability;
     std::string medicineAppPath;
     bool futurerestoreRestoreFlag = false;
+    bool idevicerestoreRestoreFlag = false;
     bool understandRestoreFlag = false;
     bool jailbreakExecuteFlag = false;
     bool understandJailbreakFlag = false;
@@ -768,9 +794,63 @@ int main(int argc, char* argv[]) {
             }
         } else if (strcmp(argv[i], "--apticket") == 0) {
             if (i + 1 < argc) {
-                apticketPath = argv[++i];
+                const std::string ticketPath = argv[++i];
+                if (apticketPath.empty()) {
+                    apticketPath = ticketPath;
+                } else {
+                    futureRestoreCli.extraApticketPaths.push_back(ticketPath);
+                }
             } else {
                 Logger::error("--apticket requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--update") == 0) {
+            futureRestoreCli.updateInstall = true;
+            ideviceRestoreCli.updateInstall = true;
+        } else if (strcmp(argv[i], "--wait") == 0 || strcmp(argv[i], "-w") == 0) {
+            futureRestoreCli.waitApNonce = true;
+        } else if (strcmp(argv[i], "--use-pwndfu") == 0) {
+            futureRestoreCli.usePwndfu = true;
+        } else if (strcmp(argv[i], "--just-boot") == 0) {
+            futureRestoreCli.justBoot = true;
+        } else if (strcmp(argv[i], "--just-boot-args") == 0) {
+            if (i + 1 < argc) {
+                futureRestoreCli.justBootArgs = argv[++i];
+            } else {
+                Logger::error("--just-boot-args requires a LINE argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--exit-recovery") == 0 || strcmp(argv[i], "-e") == 0) {
+            futureRestoreCli.exitRecovery = true;
+        } else if (strcmp(argv[i], "--debug-restore") == 0) {
+            futureRestoreCli.debug = true;
+            ideviceRestoreCli.debug = true;
+        } else if (strcmp(argv[i], "--sep") == 0) {
+            if (i + 1 < argc) {
+                futureRestoreCli.sepPath = argv[++i];
+            } else {
+                Logger::error("--sep requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--sep-manifest") == 0) {
+            if (i + 1 < argc) {
+                futureRestoreCli.sepManifestPath = argv[++i];
+            } else {
+                Logger::error("--sep-manifest requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--baseband") == 0) {
+            if (i + 1 < argc) {
+                futureRestoreCli.basebandPath = argv[++i];
+            } else {
+                Logger::error("--baseband requires a PATH argument");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--baseband-manifest") == 0) {
+            if (i + 1 < argc) {
+                futureRestoreCli.basebandManifestPath = argv[++i];
+            } else {
+                Logger::error("--baseband-manifest requires a PATH argument");
                 return 1;
             }
         } else if (strcmp(argv[i], "--latest-sep") == 0) {
@@ -1194,6 +1274,9 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "--futurerestore-restore") == 0) {
             futurerestoreRestoreFlag = true;
             jailbreakFlag = false;
+        } else if (strcmp(argv[i], "--idevicerestore-restore") == 0) {
+            idevicerestoreRestoreFlag = true;
+            jailbreakFlag = false;
         } else if (strcmp(argv[i], "--i-understand-restore") == 0) {
             understandRestoreFlag = true;
         } else if (strcmp(argv[i], "--jailbreak-execute") == 0) {
@@ -1471,7 +1554,14 @@ int main(int argc, char* argv[]) {
     }
 
     if (tssCheckFlag) {
-        return runTssCheck(manager, targetUDID, "", "", 0, ipswPath, apticketPath) ? 0 : 1;
+        primitives::FutureRestoreOptions frOpts = futureRestoreCli;
+        if (!apticketPath.empty() && frOpts.apticketPath.empty()) {
+            frOpts.apticketPath = apticketPath;
+        }
+        return runTssCheck(manager, targetUDID, "", "", 0, ipswPath, apticketPath, frOpts,
+                           ideviceRestoreCli)
+                   ? 0
+                   : 1;
     }
 
     if (fetchShshFlag) {
@@ -1634,6 +1724,7 @@ int main(int argc, char* argv[]) {
         cli.ipswPath = ipswPath;
         cli.apticketPath = apticketPath;
         cli.futureRestore = futureRestoreCli;
+        cli.ideviceRestore = ideviceRestoreCli;
         cli.im4mManifestPath = im4mManifestPath;
         cli.ipswComponentPath = ipswComponentPath;
         cli.recoveryUploadPath = recoveryUploadPath;
@@ -1681,6 +1772,7 @@ int main(int argc, char* argv[]) {
         cli.medicineCapability = medicineCapability;
         cli.medicineAppPath = medicineAppPath;
         cli.futurerestoreRestoreFlag = futurerestoreRestoreFlag;
+        cli.idevicerestoreRestoreFlag = idevicerestoreRestoreFlag;
         cli.jailbreakExecuteFlag = jailbreakExecuteFlag;
         cli.bypassIntegrityFlag = bypassIntegrityFlag;
         cli.kernelcachePath = kernelcachePath;
@@ -1774,6 +1866,19 @@ int main(int argc, char* argv[]) {
         }
         Gen0Options frOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
         return runFuturerestoreRestore(frOpts, true) ? 0 : 1;
+    }
+
+    if (idevicerestoreRestoreFlag) {
+        if (!understandRestoreFlag) {
+            Logger::error("idevicerestore restore requires --i-understand-restore");
+            return 1;
+        }
+        if (!exploitPluginsEnabled()) {
+            Logger::error("idevicerestore restore requires make plugins");
+            return 1;
+        }
+        Gen0Options irOpts = gen0OptionsFromCli(buildCliParsed(), Gen0CliIntent::Gen0);
+        return runIdevicerestoreRestore(irOpts, true) ? 0 : 1;
     }
 
     codesignCli.bundleId = signBundleId;

@@ -25,6 +25,7 @@ struct CliParsedOptions {
     std::string ipswPath;
     std::string apticketPath;
     primitives::FutureRestoreOptions futureRestore;
+    primitives::IdeviceRestoreOptions ideviceRestore;
     std::string im4mManifestPath;
     std::string ipswComponentPath;
     std::string recoveryUploadPath;
@@ -74,6 +75,7 @@ struct CliParsedOptions {
     std::string medicineCapability;
     std::string medicineAppPath;
     bool futurerestoreRestoreFlag = false;
+    bool idevicerestoreRestoreFlag = false;
     bool understandRestoreFlag = false;
     bool jailbreakExecuteFlag = false;
     bool bypassIntegrityFlag = false;

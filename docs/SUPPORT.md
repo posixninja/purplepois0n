@@ -65,12 +65,13 @@ Details: [MVP.md](MVP.md), [DOCTOR.md](DOCTOR.md), [STORE_ECOSYSTEM.md](STORE_EC
 | Mach-O / dyld JSON export | — | internal | **Implemented** (`--analyze-json`; see [BOOGERAIDS.md](BOOGERAIDS.md)) |
 | Encrypted backup decrypt | — | yes | **NOT** — `isEncrypted` detected only; no keybag decrypt |
 | TSS / SHSH signing probe | — | yes | **Partial** — `TssSigningProbePrimitive`; idevicerestore / futurerestore / ipsw delegates |
-| futurerestore unsigned restore | — | yes | **Partial** — argv builder + env; full restore mutation-gated |
+| futurerestore unsigned restore | — | yes | **Done** — full argv parity + env; probe logs command |
 | Host Mach-O / IPA ad-hoc sign | yalu / Fugu15 sideload | yes | **Partial** — `CodesignDelegate`, `--sign-macho` / `--sign-ipa`; needs `make external-ipsw` |
 | IPA install over USB (instproxy) | yalu / checkra1n sideload | yes | **Partial** — `SideloadPrimitive`, `--install-ipa`; mutation needs `make plugins` |
 | On-device trust cache delegate | Dopamine `jbctl` | — | **Partial** — `TrustCacheDelegate`, `--trustcache-add`; host jbctl or ramdisk SSH |
 | Post-jb sign→install→trustcache | yalu / Dopamine sideload | — | **Partial** — `--post-jb-pipeline` (make plugins) |
-| futurerestore restore spawn | futurerestore | — | **Partial** — `--futurerestore-restore --i-understand-restore` (make plugins) |
+| futurerestore restore spawn | futurerestore | — | **Done** — `--futurerestore-restore --i-understand-restore` (make plugins) |
+| idevicerestore stock restore spawn | idevicerestore | — | **Done** — `--idevicerestore-restore --i-understand-restore` (make plugins) |
 | In-memory HFS+ ramdisk builder | anthrax `template.dmg` | — | **Done** — `HfsPlusWriter`, `--build-ramdisk`, ipsw-validated catalog |
 | IPSW RestoreRamDisk mutate + IM4P | greenpois0n staging | — | **Done** — stock extract + overlay merge, `--ramdisk-from-ipsw` |
 | Recovery iBSS→iBEC→rdsk chain | idevicerestore FSM | — | **Done** — probe; **execute** via `jailbreak --execute` when plugins + IPSW (partial on hardware) |
@@ -95,7 +96,11 @@ Details: [MVP.md](MVP.md), [DOCTOR.md](DOCTOR.md), [STORE_ECOSYSTEM.md](STORE_EC
 | `--afc-pull REMOTE LOCAL` | Download file via AFC |
 | `--tss-check` | TSS tool probe + Apple signing check (`ipsw download tss --signed`; needs `-d` Normal) |
 | `--ipsw PATH` | Target IPSW for `--gen0` TSS / futurerestore probes |
-| `--apticket PATH` | Saved SHSH for futurerestore path |
+| `--apticket PATH` | Saved SHSH for futurerestore path (repeat for multiple `-t`) |
+| `--update` / `--wait` / `--use-pwndfu` / `--just-boot` | futurerestore behavior flags |
+| `--exit-recovery` / `--debug-restore` | futurerestore `-e` / `--debug` |
+| `--sep` / `--sep-manifest` / `--baseband` / `--baseband-manifest` | Manual SEP/BB tickets |
+| `--futurerestore-restore` / `--idevicerestore-restore` | Spawn external restore (destructive) |
 | `--latest-sep` / `--latest-baseband` / `--no-baseband` | futurerestore SEP/baseband strategy (with `--gen0`) |
 | `-j` / default | Jailbreak scaffold: DFU runs probe chain only; other modes use Gen0 workflow |
 | `-m` / `--checkm8` | DFU bootrom exploit via external gaster/ipwndfu (after probe) |

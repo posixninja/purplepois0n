@@ -41,6 +41,10 @@ public:
     static std::vector<std::string> buildFuturerestoreArgv(const ExecutionContext& context,
                                                            const std::string& ipswPath);
 
+    /** Build idevicerestore argv for stock live restore. */
+    static std::vector<std::string> buildIdevicerestoreArgv(const ExecutionContext& context,
+                                                            const std::string& ipswPath);
+
     /**
      * Check whether Apple still signs a build (host-only via ipsw download tss --signed).
      */
@@ -54,6 +58,13 @@ public:
      */
     static PrimitiveResult runFuturerestoreRestore(const ExecutionContext& context,
                                                    bool allowMutation);
+
+    /**
+     * Spawn idevicerestore for stock live restore (mutation only).
+     * Requires Apple to still sign the target IPSW.
+     */
+    static PrimitiveResult runIdevicerestoreRestore(const ExecutionContext& context,
+                                                    bool allowMutation);
 
     /** Extract IM4M manifest from APTicket via `ipsw img4 im4m extract`. */
     static PrimitiveResult extractIm4mFromApticket(const std::string& apticketPath,

@@ -113,6 +113,8 @@ struct ExecutionContext {
     std::string apticketPath;
     /** futurerestore SEP/baseband options (CLI or env). */
     FutureRestoreOptions futureRestore;
+    /** idevicerestore stock live restore options (CLI or env). */
+    IdeviceRestoreOptions ideviceRestore;
     /** IM4M manifest for personalization (from TSS or `ipsw img4 im4m extract`). */
     std::string im4mManifestPath;
     /** Unsigned component inside IPSW tree to personalize before upload. */

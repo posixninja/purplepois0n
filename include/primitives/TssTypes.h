@@ -8,6 +8,7 @@
 #define PRIMITIVES_TSS_TYPES_H_
 
 #include <string>
+#include <vector>
 
 namespace PP {
 namespace primitives {
@@ -28,6 +29,8 @@ enum class TssSigningMode {
  */
 struct FutureRestoreOptions {
     std::string apticketPath;
+    /** Additional -t tickets (Prometheus ApNonce collision speed-up). */
+    std::vector<std::string> extraApticketPaths;
     bool latestSep = false;
     bool latestBaseband = false;
     bool noBaseband = false;
@@ -36,6 +39,12 @@ struct FutureRestoreOptions {
     bool waitApNonce = false;
     bool usePwndfu = false;
     bool justBoot = false;
+    /** Optional boot-args after --just-boot (futurerestore tethered boot). */
+    std::string justBootArgs;
+    /** -e / --exit-recovery: exit recovery and quit without restoring. */
+    bool exitRecovery = false;
+    /** -d / --debug: verbose futurerestore logging. */
+    bool debug = false;
     std::string sepPath;
     std::string sepManifestPath;
     std::string basebandPath;
@@ -44,8 +53,14 @@ struct FutureRestoreOptions {
     std::string sepManifestIpsw;
     /** IPSW path to extract baseband BuildManifest (--latest-baseband companion). */
     std::string bbManifestIpsw;
-    /** Extra flags (PURPLEPOIS0N_FUTURERESTORE_ARGS), e.g. --debug. */
+    /** Extra flags (PURPLEPOIS0N_FUTURERESTORE_ARGS), e.g. custom boot-args. */
     std::string extraArgs;
+};
+
+/** Stock live restore via idevicerestore (Apple still signs target IPSW). */
+struct IdeviceRestoreOptions {
+    bool updateInstall = false;
+    bool debug = false;
 };
 
 const char* tssSigningModeToString(TssSigningMode mode);
@@ -55,6 +70,9 @@ TssSigningMode tssSigningModeFromEnv();
 
 /** Load FutureRestoreOptions from PURPLEPOIS0N_* env (see TssDelegate). */
 FutureRestoreOptions futureRestoreOptionsFromEnv();
+
+/** Load IdeviceRestoreOptions from PURPLEPOIS0N_* env. */
+IdeviceRestoreOptions ideviceRestoreOptionsFromEnv();
 
 } /* namespace primitives */
 } /* namespace PP */

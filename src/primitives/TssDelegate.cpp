@@ -178,11 +178,25 @@ std::vector<std::string> TssDelegate::buildFuturerestoreArgv(const ExecutionCont
     if (!fr.extraArgs.empty()) {
         appendSplitArgs(&argv, fr.extraArgs);
     }
-
-    if (!fr.apticketPath.empty()) {
-        argv.push_back("-t");
-        argv.push_back(fr.apticketPath);
+    if (fr.debug) {
+        argv.push_back("--debug");
     }
+    if (fr.exitRecovery) {
+        argv.push_back("--exit-recovery");
+    }
+
+    std::vector<std::string> tickets;
+    if (!fr.apticketPath.empty()) {
+        tickets.push_back(fr.apticketPath);
+    }
+    for (size_t i = 0; i < fr.extraApticketPaths.size(); ++i) {
+        tickets.push_back(fr.extraApticketPaths[i]);
+    }
+    for (size_t i = 0; i < tickets.size(); ++i) {
+        argv.push_back("-t");
+        argv.push_back(tickets[i]);
+    }
+
     if (fr.updateInstall) {
         argv.push_back("--update");
     }
@@ -194,6 +208,9 @@ std::vector<std::string> TssDelegate::buildFuturerestoreArgv(const ExecutionCont
     }
     if (fr.justBoot) {
         argv.push_back("--just-boot");
+        if (!fr.justBootArgs.empty()) {
+            appendSplitArgs(&argv, fr.justBootArgs);
+        }
     }
     if (fr.latestSep) {
         argv.push_back("--latest-sep");
@@ -216,6 +233,33 @@ std::vector<std::string> TssDelegate::buildFuturerestoreArgv(const ExecutionCont
             argv.push_back("-p");
             argv.push_back(fr.basebandManifestPath);
         }
+    }
+    argv.push_back(ipswPath);
+    return argv;
+}
+
+std::vector<std::string> TssDelegate::buildIdevicerestoreArgv(const ExecutionContext& context,
+                                                              const std::string& ipswPath) {
+    std::vector<std::string> argv;
+    const std::string tool = findIdevicerestore();
+    if (tool.empty() || ipswPath.empty()) {
+        return argv;
+    }
+
+    IdeviceRestoreOptions ir = ideviceRestoreOptionsFromEnv();
+    if (context.ideviceRestore.updateInstall) {
+        ir.updateInstall = true;
+    }
+    if (context.ideviceRestore.debug) {
+        ir.debug = true;
+    }
+
+    argv.push_back(tool);
+    if (ir.debug) {
+        argv.push_back("-d");
+    }
+    if (ir.updateInstall) {
+        argv.push_back("-u");
     }
     argv.push_back(ipswPath);
     return argv;
@@ -392,6 +436,40 @@ PrimitiveResult TssDelegate::runFuturerestoreRestore(const ExecutionContext& con
     }
 
     Logger::warn("  [TSS]    spawning futurerestore — destructive restore, user-initiated only");
+    const CommandResult result = ToolRunner::run(argv);
+    return (result.exitCode == 0) ? PrimitiveResult::Success : PrimitiveResult::Failed;
+}
+
+PrimitiveResult TssDelegate::runIdevicerestoreRestore(const ExecutionContext& context,
+                                                      bool allowMutation) {
+    if (context.ipswPath.empty()) {
+        return PrimitiveResult::PrerequisitesMissing;
+    }
+
+    const std::vector<std::string> argv = buildIdevicerestoreArgv(context, context.ipswPath);
+    if (argv.empty()) {
+        return PrimitiveResult::PrerequisitesMissing;
+    }
+
+    if (!allowMutation) {
+        Logger::info("  [TSS]    idevicerestore command (probe only):");
+        std::ostringstream line;
+        for (size_t i = 0; i < argv.size(); ++i) {
+            if (i > 0) {
+                line << ' ';
+            }
+            line << argv[i];
+        }
+        Logger::info("  [TSS]      " + line.str());
+        return PrimitiveResult::Success;
+    }
+
+    if (!exploitPluginsEnabled()) {
+        Logger::warn("  [TSS]    idevicerestore restore requires make plugins");
+        return PrimitiveResult::PluginDisabled;
+    }
+
+    Logger::warn("  [TSS]    spawning idevicerestore — destructive restore, user-initiated only");
     const CommandResult result = ToolRunner::run(argv);
     return (result.exitCode == 0) ? PrimitiveResult::Success : PrimitiveResult::Failed;
 }

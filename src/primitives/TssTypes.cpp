@@ -60,6 +60,9 @@ FutureRestoreOptions futureRestoreOptionsFromEnv() {
     opts.waitApNonce = envTruthy("PURPLEPOIS0N_FUTURERESTORE_WAIT_NONCE");
     opts.usePwndfu = envTruthy("PURPLEPOIS0N_FUTURERESTORE_USE_PWNDFU");
     opts.justBoot = envTruthy("PURPLEPOIS0N_FUTURERESTORE_JUST_BOOT");
+    opts.justBootArgs = envString("PURPLEPOIS0N_FUTURERESTORE_JUST_BOOT_ARGS");
+    opts.exitRecovery = envTruthy("PURPLEPOIS0N_FUTURERESTORE_EXIT_RECOVERY");
+    opts.debug = envTruthy("PURPLEPOIS0N_FUTURERESTORE_DEBUG");
     opts.sepPath = envString("PURPLEPOIS0N_FUTURERESTORE_SEP");
     opts.sepManifestPath = envString("PURPLEPOIS0N_FUTURERESTORE_SEP_MANIFEST");
     opts.basebandPath = envString("PURPLEPOIS0N_FUTURERESTORE_BASEBAND");
@@ -97,10 +100,23 @@ FutureRestoreOptions futureRestoreOptionsFromEnv() {
         if (strstr(flags, "--just-boot") != nullptr) {
             opts.justBoot = true;
         }
+        if (strstr(flags, "--exit-recovery") != nullptr || strstr(flags, " -e ") != nullptr) {
+            opts.exitRecovery = true;
+        }
+        if (strstr(flags, "--debug") != nullptr) {
+            opts.debug = true;
+        }
         if (opts.extraArgs.empty()) {
             opts.extraArgs = flags;
         }
     }
+    return opts;
+}
+
+IdeviceRestoreOptions ideviceRestoreOptionsFromEnv() {
+    IdeviceRestoreOptions opts;
+    opts.updateInstall = envTruthy("PURPLEPOIS0N_IDEVICERESTORE_UPDATE");
+    opts.debug = envTruthy("PURPLEPOIS0N_IDEVICERESTORE_DEBUG");
     return opts;
 }
 

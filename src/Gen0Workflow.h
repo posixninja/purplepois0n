@@ -72,6 +72,7 @@ struct Gen0Options {
     std::string ipswPath;
     std::string apticketPath;
     primitives::FutureRestoreOptions futureRestore;
+    primitives::IdeviceRestoreOptions ideviceRestore;
     std::string im4mManifestPath;
     std::string ipswComponentPath;
     std::string fetchShshPath;
@@ -93,6 +94,7 @@ struct Gen0Options {
     std::string medicineCapability;
     std::string medicineAppPath;
     bool futurerestoreRestore = false;
+    bool idevicerestoreRestore = false;
     /** Run era execute chain (requires make plugins + --i-understand-jailbreak). */
     bool jailbreakExecute = false;
     /** Auto-run PAC + data-integrity bypass (badRecovery delegate) after kernel exploit. */
@@ -132,7 +134,9 @@ bool runTssCheck(DeviceManager& manager,
                  const std::string& iosVersion,
                  uint64_t ecid,
                  const std::string& ipswPath = "",
-                 const std::string& apticketPath = "");
+                 const std::string& apticketPath = "",
+                 const primitives::FutureRestoreOptions& futureRestore = {},
+                 const primitives::IdeviceRestoreOptions& ideviceRestore = {});
 
 bool fetchLiveShsh(DeviceManager& manager,
                    const std::string& targetUDID,
@@ -171,6 +175,7 @@ bool runMedicinePipeline(DeviceManager& manager,
 
 /** Destructive futurerestore restore (explicit CLI only). */
 bool runFuturerestoreRestore(const Gen0Options& options, bool allowMutation);
+bool runIdevicerestoreRestore(const Gen0Options& options, bool allowMutation);
 
 /** Offline host kernelcache patchfind / apply (no device required). */
 bool runHostKernelPatch(const std::string& kernelcachePath,

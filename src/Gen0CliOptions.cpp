@@ -15,6 +15,7 @@ Gen0Options gen0OptionsFromCli(const CliParsedOptions& cli, Gen0CliIntent intent
     options.ipswPath = cli.ipswPath;
     options.apticketPath = cli.apticketPath;
     options.futureRestore = cli.futureRestore;
+    options.ideviceRestore = cli.ideviceRestore;
     if (!cli.apticketPath.empty()) {
         options.futureRestore.apticketPath = cli.apticketPath;
     }
@@ -80,6 +81,7 @@ Gen0Options gen0OptionsFromCli(const CliParsedOptions& cli, Gen0CliIntent intent
     options.medicineCapability = cli.medicineCapability;
     options.medicineAppPath = cli.medicineAppPath;
     options.futurerestoreRestore = cli.futurerestoreRestoreFlag;
+    options.idevicerestoreRestore = cli.idevicerestoreRestoreFlag;
     options.jailbreakExecute = cli.jailbreakExecuteFlag;
     options.bypassIntegrity = cli.bypassIntegrityFlag || cli.jailbreakExecuteFlag;
     if (cli.jailbreakExecuteFlag && !cli.pongoProbeFlag && !cli.pongoBootFlag) {

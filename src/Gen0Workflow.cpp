@@ -316,7 +316,9 @@ bool runTssCheck(DeviceManager& manager,
                  const std::string& iosVersion,
                  uint64_t ecid,
                  const std::string& ipswPath,
-                 const std::string& apticketPath) {
+                 const std::string& apticketPath,
+                 const primitives::FutureRestoreOptions& futureRestore,
+                 const primitives::IdeviceRestoreOptions& ideviceRestore) {
     Logger::info("TSS / futurerestore signing probe (no restore)");
 
     primitives::ExecutionContext ctx;
@@ -326,9 +328,26 @@ bool runTssCheck(DeviceManager& manager,
     ctx.ecid = ecid;
     ctx.ipswPath = ipswPath;
     ctx.apticketPath = apticketPath;
-    ctx.futureRestore = primitives::futureRestoreOptionsFromEnv();
-    if (!apticketPath.empty()) {
+    ctx.futureRestore = futureRestore;
+    ctx.ideviceRestore = ideviceRestore;
+    if (ctx.futureRestore.apticketPath.empty() && !apticketPath.empty()) {
         ctx.futureRestore.apticketPath = apticketPath;
+    }
+    if (ctx.futureRestore.apticketPath.empty() &&
+        ctx.futureRestore.extraApticketPaths.empty() &&
+        ctx.futureRestore.sepPath.empty() &&
+        !ctx.futureRestore.latestSep && !ctx.futureRestore.latestBaseband &&
+        !ctx.futureRestore.noBaseband && !ctx.futureRestore.updateInstall &&
+        !ctx.futureRestore.waitApNonce && !ctx.futureRestore.usePwndfu &&
+        !ctx.futureRestore.justBoot && ctx.futureRestore.justBootArgs.empty() &&
+        !ctx.futureRestore.exitRecovery && !ctx.futureRestore.debug) {
+        ctx.futureRestore = primitives::futureRestoreOptionsFromEnv();
+        if (!apticketPath.empty()) {
+            ctx.futureRestore.apticketPath = apticketPath;
+        }
+    }
+    if (!ctx.ideviceRestore.updateInstall && !ctx.ideviceRestore.debug) {
+        ctx.ideviceRestore = primitives::ideviceRestoreOptionsFromEnv();
     }
 
     if (!targetUDID.empty()) {
@@ -358,9 +377,12 @@ bool runTssCheck(DeviceManager& manager,
     const bool savedTicketPlan =
         !ctx.ipswPath.empty() &&
         primitives::TssDelegate::resolveSigningMode(ctx) == primitives::TssSigningMode::SavedApTicket;
+    const bool stockLivePlan =
+        !ctx.ipswPath.empty() &&
+        primitives::TssDelegate::resolveSigningMode(ctx) == primitives::TssSigningMode::StockLive;
 
     if (ctx.productType.empty() || ctx.iosVersion.empty()) {
-        if (!savedTicketPlan) {
+        if (!savedTicketPlan && !stockLivePlan) {
             Logger::error("Need -d UDID (Normal) or pass ProductType + iOS version for signing check");
             primitives::TssDelegate::logProcessOverview(ctx);
             return false;
@@ -382,6 +404,11 @@ bool runTssCheck(DeviceManager& manager,
             return false;
         }
         primitives::TssDelegate::runFuturerestoreRestore(ctx, false);
+    } else if (!ctx.ipswPath.empty() &&
+               primitives::TssDelegate::resolveSigningMode(ctx) ==
+                   primitives::TssSigningMode::StockLive &&
+               primitives::TssDelegate::isIdevicerestoreConfigured()) {
+        primitives::TssDelegate::runIdevicerestoreRestore(ctx, false);
     }
 
     return true;
@@ -892,6 +919,28 @@ bool runFuturerestoreRestore(const Gen0Options& options, bool allowMutation) {
     }
 
     return primitives::TssDelegate::runFuturerestoreRestore(ctx, allowMutation) ==
+           primitives::PrimitiveResult::Success;
+}
+
+bool runIdevicerestoreRestore(const Gen0Options& options, bool allowMutation) {
+    Logger::info("idevicerestore stock restore (destructive — user-initiated only)");
+
+    if (options.ipswPath.empty()) {
+        Logger::error("idevicerestore restore requires --ipsw PATH");
+        return false;
+    }
+
+    primitives::ExecutionContext ctx;
+    ctx.ipswPath = options.ipswPath;
+    ctx.ideviceRestore = options.ideviceRestore;
+    ctx.allowMutation = allowMutation;
+
+    if (!primitives::TssDelegate::isIdevicerestoreConfigured()) {
+        Logger::error("idevicerestore not found — set PURPLEPOIS0N_IDEVICERESTORE");
+        return false;
+    }
+
+    return primitives::TssDelegate::runIdevicerestoreRestore(ctx, allowMutation) ==
            primitives::PrimitiveResult::Success;
 }
 

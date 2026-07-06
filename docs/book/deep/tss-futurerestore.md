@@ -50,6 +50,8 @@ futurerestore is a **wrapper** around idevicerestore for **non-matching** firmwa
 | `-w` / `--wait` | ApNonce collision (Prometheus); reboot until nonce matches ticket |
 | `--use-pwndfu` | Odysseus path with libipatcher |
 | `--just-boot` | Tethered boot from pwned DFU only |
+| `-e` / `--exit-recovery` | Exit recovery mode and quit without restoring |
+| `-d` / `--debug` | Verbose logging (CLI: `--debug-restore`; purplepois0n `-d` is device UDID) |
 
 ### Methods (educational)
 
@@ -83,6 +85,30 @@ See [futurerestore README](https://github.com/tihmstar/futurerestore/blob/master
 | `PURPLEPOIS0N_BB_IPSW` | IPSW for latest baseband BuildManifest |
 | `PURPLEPOIS0N_LATEST_IPSW` | Fallback when `--latest-sep` / `--latest-baseband` without explicit SEP/BB IPSW |
 | `PURPLEPOIS0N_FUTURERESTORE_ARGS` | Extra futurerestore argv |
+| `PURPLEPOIS0N_FUTURERESTORE_UPDATE` / `_WAIT_NONCE` / `_USE_PWNDFU` / `_JUST_BOOT` | Match `--update`, `-w`, `--use-pwndfu`, `--just-boot` |
+| `PURPLEPOIS0N_FUTURERESTORE_EXIT_RECOVERY` / `_DEBUG` | Match `--exit-recovery`, `--debug-restore` |
+| `PURPLEPOIS0N_IDEVICERESTORE_UPDATE` / `_DEBUG` | idevicerestore `-u` / `-d` |
+
+### futurerestore parity matrix
+
+| futurerestore flag | purplepois0n CLI | Env | Notes |
+|--------------------|------------------|-----|-------|
+| `-t` / `--apticket` | `--apticket` (repeatable) | `PURPLEPOIS0N_APTICKET` | Multiple tickets for ApNonce collision |
+| `--update` | `--update` | `PURPLEPOIS0N_FUTURERESTORE_UPDATE` | Also sets idevicerestore `-u` |
+| `-w` / `--wait` | `--wait` | `PURPLEPOIS0N_FUTURERESTORE_WAIT_NONCE` | |
+| `--debug` | `--debug-restore` | `PURPLEPOIS0N_FUTURERESTORE_DEBUG` | Avoid `-d` (device UDID) |
+| `-e` / `--exit-recovery` | `--exit-recovery` | `PURPLEPOIS0N_FUTURERESTORE_EXIT_RECOVERY` | |
+| `--use-pwndfu` | `--use-pwndfu` | `PURPLEPOIS0N_FUTURERESTORE_USE_PWNDFU` | Odysseus |
+| `--just-boot` | `--just-boot` + `--just-boot-args` | `_JUST_BOOT`, `_JUST_BOOT_ARGS` | |
+| `--latest-sep` | `--latest-sep` | `PURPLEPOIS0N_FUTURERESTORE_LATEST_SEP` | |
+| `-s` / `-m` | `--sep` / `--sep-manifest` | `_SEP` / `_SEP_MANIFEST` | |
+| `--latest-baseband` | `--latest-baseband` | `PURPLEPOIS0N_FUTURERESTORE_LATEST_BASEBAND` | |
+| `-b` / `-p` | `--baseband` / `--baseband-manifest` | `_BASEBAND` / `_BASEBAND_MANIFEST` | |
+| `--no-baseband` | `--no-baseband` | `PURPLEPOIS0N_FUTURERESTORE_NO_BASEBAND` | |
+| Restore spawn | `--futurerestore-restore --i-understand-restore` | `PURPLEPOIS0N_FUTURERESTORE` | `make plugins` |
+| Stock live spawn | `--idevicerestore-restore --i-understand-restore` | `PURPLEPOIS0N_IDEVICERESTORE` | `make plugins` |
+
+Offline argv smoke: `make smoke-futurerestore-parity`.
 
 ### CLI
 
@@ -90,10 +116,14 @@ See [futurerestore README](https://github.com/tihmstar/futurerestore/blob/master
 # Signing status (Normal device, lockdown metadata)
 ./build/bin/purplepois0n --tss-check -d <UDID>
 
-# Gen0 + IPSW + futurerestore options in chain report
-./build/bin/purplepois0n --gen0 --ipsw firmware.ipsw --apticket blob.shsh2 \
-  --latest-sep --latest-baseband --sep-ipsw latest_signed.ipsw --bb-ipsw latest_signed.ipsw \
-  -d <UDID> --report /tmp/pp.json
+# Prometheus collision with multiple tickets
+./build/bin/purplepois0n --gen0 --ipsw firmware.ipsw \
+  --apticket t1.shsh2 --apticket t2.shsh2 --wait --latest-sep --latest-baseband
+
+# Destructive restore (make plugins + explicit ack)
+./build/bin/purplepois0n --futurerestore-restore --i-understand-restore \
+  --ipsw firmware.ipsw --apticket blob.shsh2 --latest-sep --latest-baseband
+./build/bin/purplepois0n --idevicerestore-restore --i-understand-restore --ipsw signed.ipsw
 ```
 
 Full **futurerestore restore** spawn is mutation-gated (`make plugins`); default runs are probe-only.
@@ -128,7 +158,7 @@ Env (execute path): `PURPLEPOIS0N_RECOVERY_RESET=1`, `PURPLEPOIS0N_RECOVERY_REBO
 
 Device validation checklist: [validation/tss-recovery-smoke.md](../../validation/tss-recovery-smoke.md).
 
-**Still open:** full futurerestore FSM spawn (probe-only today); encrypted backup decrypt.
+**Still open:** in-tree idevicerestore FSM (DFU→ASR); Prometheus NVRAM generator automation; encrypted backup decrypt.
 
 ### libtatsu (in-tree live TSS)
 

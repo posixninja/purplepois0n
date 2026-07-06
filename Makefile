@@ -178,6 +178,7 @@ help:
 	@echo "  external-ipswd - build ipswd daemon in external/ipsw (requires Go)"
 	@echo "  test-fixtures - offline backup/Mach-O smoke (tests/run_fixtures.sh)"
 	@echo "  smoke-tss     - host TSS + chain report smoke (tests/smoke_tss.sh)"
+	@echo "  smoke-futurerestore-parity - futurerestore/idevicerestore argv parity (offline)"
 	@echo "  smoke-host-patch - offline kernelcache patchfind smoke"
 	@echo "  help     - Show this help message"
 	@echo ""
@@ -212,6 +213,10 @@ test-fixtures: $(TARGET)
 smoke-tss: $(TARGET)
 	@chmod +x tests/smoke_tss.sh tests/assert_chain_report.sh 2>/dev/null || true
 	@tests/smoke_tss.sh
+
+smoke-futurerestore-parity: $(TARGET)
+	@chmod +x tests/smoke_futurerestore_parity.sh 2>/dev/null || true
+	@tests/smoke_futurerestore_parity.sh
 
 smoke-host-patch: $(TARGET)
 	@chmod +x tests/smoke_host_patch.sh 2>/dev/null || true
@@ -319,4 +324,4 @@ tui-install:
 tui: tui-install
 	@cd ui/tui && .venv/bin/python -m purplepois0n_tui
 
-.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss smoke-host-patch kpf smoke-kpf smoke-kpf-data-only smoke-dtree-mmio smoke-dfu-jailbreak smoke-medicine smoke-dpkg-store smoke-doctor smoke-device-plan smoke-capabilities smoke-rootless-layout smoke-mvp-gaps smoke-recovery-chain smoke-hardware-validation smoke-mvp smoke-mvp-strict web-install web-dev web-build agent smoke-web smoke-agent seed-store smoke-store-device smoke-e2e-delegate tui-install tui
+.PHONY: all release debug clean install uninstall help plugins submodules external-ipsw external-ipswd external-libtatsu test-fixtures smoke-tss smoke-futurerestore-parity smoke-host-patch kpf smoke-kpf smoke-kpf-data-only smoke-dtree-mmio smoke-dfu-jailbreak smoke-medicine smoke-dpkg-store smoke-doctor smoke-device-plan smoke-capabilities smoke-rootless-layout smoke-mvp-gaps smoke-recovery-chain smoke-hardware-validation smoke-mvp smoke-mvp-strict web-install web-dev web-build agent smoke-web smoke-agent seed-store smoke-store-device smoke-e2e-delegate tui-install tui

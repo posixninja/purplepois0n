@@ -21,6 +21,7 @@ primitives::ExecutionContext buildExecutionContext(DeviceState state,
     ctx.ipswPath = options.ipswPath;
     ctx.apticketPath = options.apticketPath;
     ctx.futureRestore = options.futureRestore;
+    ctx.ideviceRestore = options.ideviceRestore;
     ctx.im4mManifestPath = options.im4mManifestPath;
     ctx.ipswComponentPath = options.ipswComponentPath;
     ctx.recoveryUploadPath = options.recovery.uploadPath;
